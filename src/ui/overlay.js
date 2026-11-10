@@ -10,6 +10,9 @@ import {drawDecorations} from './decorations.js';
 import {Magnifier} from './magnifier.js';
 import {Toolbar} from './toolbar.js';
 
+// Must match the border plus padding of .mirx-text-editor in stylesheet.css.
+const TEXT_EDITOR_INSET = 3;
+
 /** Translates Shell events into editor actions, and presents the frozen session. */
 export class Overlay {
     constructor({snapshot, editor, onCancel, onExport, enterAction}) {
@@ -89,7 +92,7 @@ export class Overlay {
 
     _pointOf(event) {
         const [x, y] = event.get_coords();
-        return {x: Math.round(x), y: Math.round(y)};
+        return {x: Math.floor(x), y: Math.floor(y)};
     }
 
     _options(event) {
@@ -118,7 +121,7 @@ export class Overlay {
         const result = this.editor.pointerDown(this._point,
             {...this._options(event), clickCount: doubleClick ? 2 : 1});
         this._selectionDrag = ['select', 'selection-resize'].includes(this.editor.interaction);
-        this._dragging = !result;
+        this._dragging = Boolean(this.editor.interaction);
         if (result?.newText)
             this._startText(result.newText);
         else if (result?.editText !== undefined)
@@ -210,12 +213,15 @@ export class Overlay {
         font.set_absolute_size(Math.max(14, style.width * 5) * Pango.SCALE);
         text.set_font_description(font);
         const container = new St.Bin({style_class: 'mirx-text-editor', child: text,
-            x: position.x, y: position.y, reactive: true});
+            x: position.x - TEXT_EDITOR_INSET, y: position.y - TEXT_EDITOR_INSET, reactive: true});
         const selection = this.editor.selection;
-        container.set_clip(0, 0, Math.max(1, selection.x + selection.width - position.x),
-            Math.max(1, selection.y + selection.height - position.y));
+        container.set_clip(0, 0,
+            Math.max(1, selection.x + selection.width - position.x + TEXT_EDITOR_INSET),
+            Math.max(1, selection.y + selection.height - position.y + TEXT_EDITOR_INSET));
         this._textEdit = {actor: container, text, point: position, id};
         this.actor.add_child(container);
+        // Clutter.Text ignores CSS colour, so copy it from the theme node.
+        text.set_color(container.get_theme_node().get_foreground_color());
         text.grab_key_focus();
         text.set_cursor_position(-1);
     }

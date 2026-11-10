@@ -5,6 +5,7 @@ import GdkPixbuf from 'gi://GdkPixbuf';
 import St from 'gi://St';
 
 import {renderAnnotations} from '../rendering/annotations.js';
+import {cropRect} from '../rendering/pixels.js';
 
 // GJS exposes Cairo's PNG interface as filenames. Use a private temporary file
 // for the bridge between Cairo and GdkPixbuf, and always remove it afterwards.
@@ -30,8 +31,13 @@ export class ImageOutput {
         const height = Math.round(selection.height * outputScale);
         if (width <= 0 || height <= 0)
             throw new Error('The selection is empty');
+        // Margin keeps the pixels cairo's scaling filter samples around the selection edges.
+        const crop = cropRect({width: pixbuf.get_width(), height: pixbuf.get_height()}, scale, selection,
+            Math.ceil(scale / outputScale) + 1);
+        if (crop.width <= 0 || crop.height <= 0)
+            throw new Error('The selection is empty');
         return withTemporaryPng(path => {
-            pixbuf.savev(path, 'png', [], []);
+            pixbuf.new_subpixbuf(crop.x, crop.y, crop.width, crop.height).savev(path, 'png', [], []);
             const source = Cairo.ImageSurface.createFromPNG(path);
             let surface = null;
             let cr = null;
@@ -42,7 +48,7 @@ export class ImageOutput {
                 cr.translate(-selection.x, -selection.y);
                 cr.save();
                 cr.scale(1 / scale, 1 / scale);
-                cr.setSourceSurface(source, 0, 0);
+                cr.setSourceSurface(source, crop.x, crop.y);
                 cr.paint();
                 cr.restore();
                 renderAnnotations(cr, annotations, {pixbuf, scale});

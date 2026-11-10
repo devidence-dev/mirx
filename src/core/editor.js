@@ -152,7 +152,8 @@ export class Editor {
         }
         if (this.tool) {
             const handle = handleAt(this.selection, point);
-            if (handle) {
+            if (handle && !(point.x > this.selection.x && point.x < this.selection.x + this.selection.width &&
+                point.y > this.selection.y && point.y < this.selection.y + this.selection.height)) {
                 this._gesture = {kind: 'selection-resize', handle,
                     start: point, original: {...this.selection}};
                 return null;

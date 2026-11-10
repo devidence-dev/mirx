@@ -27,3 +27,13 @@ export function pixelBlocks({pixels, stride, channels, width, height, scale = 1}
     }
     return blocks;
 }
+
+// Selection rectangle in pixbuf pixels, widened by margin and clamped to the pixbuf.
+// Width or height <= 0 means nothing of the selection lies inside the pixbuf.
+export function cropRect({width, height}, scale, selection, margin = 0) {
+    const x = Math.max(0, Math.floor(selection.x * scale) - margin);
+    const y = Math.max(0, Math.floor(selection.y * scale) - margin);
+    const right = Math.min(width, Math.ceil((selection.x + selection.width) * scale) + margin);
+    const bottom = Math.min(height, Math.ceil((selection.y + selection.height) * scale) + margin);
+    return {x, y, width: right - x, height: bottom - y};
+}
