@@ -3,10 +3,9 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const source =
-    readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
-        .replace(/^import [^;]*;\n/gm, '')
-        .replace('export class Overlay', 'class Overlay') + '\nthis.Overlay = Overlay;';
+const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
+    .replace(/^import [^;]*;\n/gm, '')
+    .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
 
 function fixture() {
     const calls = [];

@@ -54,10 +54,9 @@ class Effect {
     }
 }
 const uniforms = [];
-const source =
-    readFileSync(new URL('../src/ui/magnifier.js', import.meta.url), 'utf8')
-        .replace(/^import [^;]*;\n/gm, '')
-        .replace('export class Magnifier', 'class Magnifier') + '\nthis.Magnifier = Magnifier;';
+const source = `${readFileSync(new URL('../src/ui/magnifier.js', import.meta.url), 'utf8')
+    .replace(/^import [^;]*;\n/gm, '')
+    .replace('export class Magnifier', 'class Magnifier')}\nthis.Magnifier = Magnifier;`;
 const Magnifier = vm.runInNewContext(source, {
     Clutter: { Actor, ScalingFilter: { NEAREST: 0 } },
     Cogl: { SnippetHook: { FRAGMENT: 2048 } },

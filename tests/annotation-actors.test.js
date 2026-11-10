@@ -321,10 +321,9 @@ for (const type of ['rectangle', 'circle', 'pixelate'])
     });
 
 test('rectangle pointer motions update only draft geometry and repaint no legacy canvas', () => {
-    const overlaySource =
-        readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
-            .replace(/^import [^;]*;\n/gm, '')
-            .replace('export class Overlay', 'class Overlay') + '\nthis.Overlay = Overlay;';
+    const overlaySource = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
+        .replace(/^import [^;]*;\n/gm, '')
+        .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
     const Overlay = vm.runInNewContext(overlaySource, {
         Clutter: { CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 }, EVENT_STOP: 1 },
         contains,
