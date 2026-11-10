@@ -15,10 +15,11 @@ try {
         if (!existsSync(name)) throw new Error(`Required package file missing: ${name}`);
         cpSync(name, join(stage, name), { recursive: true, filter: (source) => !source.endsWith('gschemas.compiled') });
     }
-    if (existsSync('LICENSE')) cpSync('LICENSE', join(stage, 'LICENSE'));
+    // Compile only to validate the schema; gnome-extensions install and the Shell compile it on install.
     run(schemaCompiler(), ['--strict', join(stage, 'schemas')]);
+    rmSync(join(stage, 'schemas', 'gschemas.compiled'), { force: true });
     mkdirSync('dist', { recursive: true });
-    const archive = resolve('dist/mirx@mirx.local.shell-extension.zip');
+    const archive = resolve('dist/mirx@devidence.dev.shell-extension.zip');
     rmSync(archive, { force: true });
     const zip = spawnSync('zip', ['-qr', archive, '.'], { cwd: stage, stdio: 'inherit' });
     if (zip.error?.code === 'ENOENT') {

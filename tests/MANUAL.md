@@ -2,7 +2,7 @@
 
 Initial status: **pending execution in a real graphical session**. The Node tests cover the model and coordination through simulated adapters; they do not replace these checks.
 
-Install the package by following the README. Record `gnome-shell --version`, the Ubuntu version, display scaling, and monitor layout. Use the default settings in `docs/mirx.feature`, a window with animated content, and two overlapping windows.
+Install the package by following the README. Record `gnome-shell --version`, the Ubuntu version, display scaling, and monitor layout. Use the default settings (see Preferences in the README), a window with animated content, and two overlapping windows.
 
 1. **Opening and canceling.** Press Alt+Shift+X: all monitors freeze without a dialog. Pressing the shortcut again does not change the session. Esc closes the capture without changing the clipboard or files. Opening it again works. Change the display scale (for example 100% to 200% and back) and press the shortcut again without logging out: it still opens the capture.
 2. **Windows.** Move the pointer: only the frame of the topmost window is highlighted, without a shadow. Click to select that frame. Selecting the exposed part of a partially covered window includes the visible portion of the window covering it. A window partly outside the monitor is clipped. Over the empty desktop or the top bar the whole monitor under the pointer is highlighted (pending check in a real session), and clicking there selects that monitor. With two monitors, the highlight and the selection follow the monitor under the pointer; check differing scales. Once a selection exists no hover highlight appears.
