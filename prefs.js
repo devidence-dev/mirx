@@ -78,6 +78,8 @@ export default class MirxPreferences extends ExtensionPreferences {
         folder.connect('apply', () => {
             if (folder.text.startsWith('/') || folder.text.startsWith('~/')) {
                 settings.set_string('folder', folder.text);
+            } else {
+                window.add_toast(new Adw.Toast({title: 'La carpeta debe empezar por / o ~/'}));
             }
         });
         watch('changed::folder', () => { if (folder.text !== settings.get_string('folder')) folder.text = settings.get_string('folder'); });

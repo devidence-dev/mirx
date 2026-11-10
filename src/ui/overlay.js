@@ -10,9 +10,6 @@ import {drawDecorations} from './decorations.js';
 import {Magnifier} from './magnifier.js';
 import {Toolbar} from './toolbar.js';
 
-// Must match the border plus padding of .mirx-text-editor in stylesheet.css.
-const TEXT_EDITOR_INSET = 3;
-
 /** Translates Shell events into editor actions, and presents the frozen session. */
 export class Overlay {
     constructor({snapshot, editor, onCancel, onExport, enterAction}) {
@@ -92,6 +89,8 @@ export class Overlay {
 
     _pointOf(event) {
         const [x, y] = event.get_coords();
+        // The magnifier needs the fractional position to address physical pixels on HiDPI.
+        this._pointer = {x, y};
         return {x: Math.floor(x), y: Math.floor(y)};
     }
 
@@ -212,16 +211,19 @@ export class Overlay {
         const font = Pango.FontDescription.from_string('Sans');
         font.set_absolute_size(Math.max(14, style.width * 5) * Pango.SCALE);
         text.set_font_description(font);
-        const container = new St.Bin({style_class: 'mirx-text-editor', child: text,
-            x: position.x - TEXT_EDITOR_INSET, y: position.y - TEXT_EDITOR_INSET, reactive: true});
+        const container = new St.Bin({style_class: 'mirx-text-editor', child: text, reactive: true});
         const selection = this.editor.selection;
-        container.set_clip(0, 0,
-            Math.max(1, selection.x + selection.width - position.x + TEXT_EDITOR_INSET),
-            Math.max(1, selection.y + selection.height - position.y + TEXT_EDITOR_INSET));
         this._textEdit = {actor: container, text, point: position, id};
         this.actor.add_child(container);
+        const node = container.get_theme_node();
+        const insetX = node.get_border_width(St.Side.LEFT) + node.get_padding(St.Side.LEFT);
+        const insetY = node.get_border_width(St.Side.TOP) + node.get_padding(St.Side.TOP);
+        container.set_position(position.x - insetX, position.y - insetY);
+        container.set_clip(0, 0,
+            Math.max(1, selection.x + selection.width - position.x + insetX),
+            Math.max(1, selection.y + selection.height - position.y + insetY));
         // Clutter.Text ignores CSS colour, so copy it from the theme node.
-        text.set_color(container.get_theme_node().get_foreground_color());
+        text.set_color(node.get_foreground_color());
         text.grab_key_focus();
         text.set_cursor_position(-1);
     }
@@ -286,7 +288,7 @@ export class Overlay {
             this._hint.set_position(m.x + 20, m.y + 20);
         }
         const pointerMonitor = this.snapshot.monitors.find(item => contains(item, this._point));
-        this._magnifier.update(this._point, pointerMonitor,
+        this._magnifier.update(this._pointer ?? this._point, pointerMonitor,
             !this._busy && !this._textEdit && (!this.editor.tool || this._selectionDrag) &&
             (!selection || this._selectionDrag));
         this.actor.set_cursor_type(this.editor.tool === 'text' ? Clutter.CursorType.TEXT :

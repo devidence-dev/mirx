@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contains, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt} from '../src/core/geometry.js';
+import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt} from '../src/core/geometry.js';
 import {Editor, annotationHit} from '../src/core/editor.js';
 
 test('selection handles remain available while an annotation tool is active', () => {
@@ -25,6 +25,7 @@ test('geometry normalizes, clips, moves, and exposes eight handles',()=>{
  assert.deepEqual(intersect({x:0,y:0,width:10,height:10},{x:8,y:-2,width:6,height:5}),{x:8,y:0,width:2,height:3});
  assert.equal(intersect({x:0,y:0,width:2,height:2},{x:2,y:0,width:2,height:2}),null);
  assert.equal(contains({x:0,y:0,width:10,height:10},{x:10,y:10}),true);
+ assert.equal(inside({x:0,y:0,width:10,height:10},{x:5,y:5}),true); assert.equal(inside({x:0,y:0,width:10,height:10},{x:0,y:5}),false); assert.equal(inside({x:0,y:0,width:10,height:10},{x:20,y:5}),false);
  assert.deepEqual(clampPoint({x:-1,y:12},{x:0,y:0,width:10,height:10}),{x:0,y:10});
  assert.deepEqual(moveRect({x:2,y:2,width:4,height:4},20,-10,{x:0,y:0,width:10,height:10}),{x:6,y:0,width:4,height:4});
  assert.deepEqual(resizeRect({x:2,y:2,width:4,height:4},'nw',{x:8,y:9},{x:0,y:0,width:10,height:10}),{x:6,y:6,width:2,height:3});
