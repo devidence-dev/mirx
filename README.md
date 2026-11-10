@@ -60,12 +60,6 @@ gnome-extensions prefs mirx@devidence.dev
 
 Updating works the same way: install the new package, then log out and in.
 
-**One-time migration from the old UUID.** Earlier builds used `mirx@mirx.local`. If you installed one, uninstall it, log out and back in, and only then install the new package. Both register the same shortcut and settings schema, so they must not coexist. Your settings are kept because the schema id and path did not change.
-
-```sh
-gnome-extensions uninstall mirx@mirx.local
-```
-
 `GLIB_COMPILE_SCHEMAS=/absolute/path` overrides the schema compiler used by `npm run pack`.
 
 ## 🖱️ Usage

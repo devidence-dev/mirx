@@ -21,10 +21,10 @@ try {
     mkdirSync('dist', { recursive: true });
     const archive = resolve('dist/mirx@devidence.dev.shell-extension.zip');
     rmSync(archive, { force: true });
-    const zip = spawnSync('zip', ['-qr', archive, '.'], { cwd: stage, stdio: 'inherit' });
+    const zip = spawnSync('/usr/bin/zip', ['-qrD', archive, '.'], { cwd: stage, stdio: 'inherit' });
     if (zip.error?.code === 'ENOENT') {
         run(
-            'python3',
+            '/usr/bin/python3',
             [
                 '-c',
                 `import os, sys, zipfile
