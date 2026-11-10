@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Write all OpenSpec artifacts, code, comments and project documentation in English,
+  regardless of the language used in the conversation. User replies may remain in Spanish.
+  Preserve the existing behavior in docs/mirx.feature unless the change explicitly revises it.
+  Keep capture and editing local, with no external services or capture history.
+  Target GNOME Shell 50 on Wayland; do not claim compatibility with other Shell versions
+  without verification. Check new GNOME APIs against the target version's GIR/typelibs.
+  Preserve GPU rendering for the overlay and export; do not reintroduce Cairo canvases
+  or full-stage CPU pixel readbacks for pointer-motion rendering.
+  Keep editor state independent of GNOME presentation and platform adapters. Use small,
+  focused components and existing injection boundaries without speculative abstractions.
+  Preserve physical-pixel alignment at integer and fractional display scales, single-monitor
+  selection boundaries, and exclusion of UI decorations from exported images.
+  Node tests do not prove graphical correctness. Record real GNOME/Wayland checks separately
+  and leave unavailable checks pending rather than reporting them as passed.
+
+rules:
+  proposal:
+    - Keep proposals under 400 words and state what is out of scope.
+    - Identify affected capabilities and distinguish existing behavior from proposed additions.
+  specs:
+    - Describe observable behavior with concrete, testable scenarios.
+    - Cover relevant failure paths, lifecycle cleanup and display-scaling edge cases.
+  design:
+    - Ground decisions in the existing implementation and document alternatives and trade-offs.
+    - For visual changes, address input handling, rendering cost, scaling and export behavior.
+  tasks:
+    - Keep each task small enough to implement and verify in one sitting.
+    - Every task states its verification; include relevant tests and documentation in its group.
+    - Mark steps requiring a real graphical session or user interaction explicitly.
+    - End with integration validation using npm test, npm run check and npm run pack where applicable.
+
+operations:
+  apply:
+    guidance:
+      - Keep implementation, tests and documentation in English.
+      - Reuse existing GNOME and standard-library facilities; avoid unnecessary dependencies.
+      - Run npm test and npm run check after code changes; run npm run pack for installable changes.
+      - Report unavailable graphical checks and any skipped schema validation explicitly.
+      - Do not commit, push or install the extension without an explicit user request.
+  archive:
+    guidance:
+      - Check that applicable automated validation passed on the current code.
+      - Report remaining manual checks and incomplete tasks before archiving.
