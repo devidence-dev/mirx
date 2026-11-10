@@ -4,6 +4,7 @@
     <key name="capture-shortcut" type="as"><default>['&lt;Alt&gt;&lt;Shift&gt;x']</default><summary>Capture shortcut</summary></key>
     <key name="enter-action" type="s"><choices><choice value="copy"/><choice value="save"/></choices><default>'copy'</default><summary>Enter action</summary></key>
     <key name="folder" type="s"><default>'~/screenshots'</default><summary>Capture folder</summary></key>
+    <key name="show-panel-icon" type="b"><default>true</default><summary>Show icon in top bar</summary></key>
     <key name="perf-log" type="b"><default>false</default><summary>Log motion and export performance</summary></key>
     <key name="format" type="s"><choices><choice value="PNG"/><choice value="JPG"/></choices><default>'PNG'</default><summary>Image format</summary></key>
     <key name="default-color" type="s"><default>'#ff0000'</default><summary>Default color</summary></key>

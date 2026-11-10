@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>mirx</title>
+  <defs>
+    <linearGradient id="mirx-gradient" x1="16" y1="16" x2="240" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13D9E5"/>
+      <stop offset="0.5" stop-color="#118CF5"/>
+      <stop offset="1" stop-color="#164FEF"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#mirx-gradient)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M88 28H56C40.5 28 28 40.5 28 56v32M168 28h32c15.5 0 28 12.5 28 28v32M28 168v32c0 15.5 12.5 28 28 28h32M228 168v32c0 15.5-12.5 28-28 28h-32"/>
+    <path d="M96 96l64 64m0-64-64 64"/>
+  </g>
+</svg>

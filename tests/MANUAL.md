@@ -68,6 +68,21 @@ Install the package by following the README. Record `gnome-shell --version`, the
 - for each palette colour (Red, Yellow, Green, Blue, Violet, White and Black), the number of a numbered marker contrasts with both its lightest (top-left) and deepest (bottom-right) circle shade, and the number stays one solid colour;
 - with `perf-log` enabled, record the `mirx-perf motion ms=` values in the GNOME Shell log while moving the pointer over several gradient rectangles, and compare them with the same rectangles drawn flat.
 
+## Top bar icon (pending; not run)
+
+Requires a real GNOME Shell 50 / Wayland session and the user. Install the packed zip, log out and in, and record each result:
+
+- Check the icon is visible and matches neighbouring icons, including hover and open-menu states.
+- Check legibility on the default dark top bar and a light top bar (light shell theme or high contrast), and when switching between light and dark colour schemes.
+- Check sharpness at 100%, 200% and approximately 133% scaling.
+- Check the menu contains only “Take screenshot” and “Preferences”, and that “Preferences” opens the window.
+- Open the menu with left and with right click and check both show the same menu. Check “Take screenshot” shows `Alt+Shift+X` right-aligned and dimmed. Change the shortcut in the preferences window (and with `gsettings set org.gnome.shell.extensions.mirx capture-shortcut "['<Control><Super>s']"`) and check the hint updates at once without a second icon; set it to `[]` and check the hint disappears.
+- Choose “Take screenshot” and check the overlay opens without the menu or highlighted item in the frozen screen or exported PNG. Repeat several times, including with a window under the menu.
+- Click “Take screenshot” twice quickly and check that only one capture opens.
+- Turn the preference off and on in the preferences window and with `gsettings set org.gnome.shell.extensions.mirx show-panel-icon false`; check the icon disappears and reappears immediately with the menu open and closed, and the shortcut works throughout.
+- Disable and enable the extension (`gnome-extensions disable/enable mirx@devidence.dev`) many times; check there is one icon, no error in `journalctl --user -g mirx`, and no leftover menu or actor. In Looking Glass, verify `Main.panel.statusArea` has no `mirx@devidence.dev` entry while disabled.
+- Disable the extension between choosing “Take screenshot” and the capture starting; check no capture opens.
+
 Also monitor the GNOME Shell log during testing:
 
 ```sh

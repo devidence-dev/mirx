@@ -15,6 +15,10 @@ try {
         if (!existsSync(name)) throw new Error(`Required package file missing: ${name}`);
         cpSync(name, join(stage, name), { recursive: true, filter: (source) => !source.endsWith('gschemas.compiled') });
     }
+    const icon = 'icons/mirx-symbolic.svg';
+    if (!existsSync(icon)) throw new Error(`Required package file missing: ${icon}`);
+    mkdirSync(join(stage, 'icons'));
+    cpSync(icon, join(stage, icon));
     // Compile only to validate the schema; gnome-extensions install and the Shell compile it on install.
     run(schemaCompiler(), ['--strict', join(stage, 'schemas')]);
     rmSync(join(stage, 'schemas', 'gschemas.compiled'), { force: true });
