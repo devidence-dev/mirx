@@ -62,10 +62,9 @@ class Stub {
     update() {}
     place() {}
 }
-const source =
-    readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
-        .replace(/^import [^;]*;\n/gm, '')
-        .replace('export class Overlay', 'class Overlay') + '\nthis.Overlay = Overlay;';
+const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
+    .replace(/^import [^;]*;\n/gm, '')
+    .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
 
 const monitors = [
     { x: 0, y: 0, width: 800, height: 600, scale: 2 },

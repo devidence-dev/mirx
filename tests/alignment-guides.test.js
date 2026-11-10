@@ -62,10 +62,9 @@ class Effect {
     }
 }
 const uniforms = [];
-const source =
-    readFileSync(new URL('../src/ui/alignmentGuides.js', import.meta.url), 'utf8')
-        .replace(/^import [^;]*;\n/gm, '')
-        .replace('export class AlignmentGuides', 'class AlignmentGuides') + '\nthis.AlignmentGuides = AlignmentGuides;';
+const source = `${readFileSync(new URL('../src/ui/alignmentGuides.js', import.meta.url), 'utf8')
+    .replace(/^import [^;]*;\n/gm, '')
+    .replace('export class AlignmentGuides', 'class AlignmentGuides')}\nthis.AlignmentGuides = AlignmentGuides;`;
 const AlignmentGuides = vm.runInNewContext(source, {
     Clutter: { Actor },
     St: {

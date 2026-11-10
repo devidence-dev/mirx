@@ -4,10 +4,9 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 // Load the class without GNOME imports; these tests exercise its actor protocol only.
-const source =
-    readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
-        .replace(/^import [^;]*;\n/gm, '')
-        .replace('export class Overlay', 'class Overlay') + '\nthis.Overlay = Overlay;';
+const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
+    .replace(/^import [^;]*;\n/gm, '')
+    .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
 const Overlay = vm.runInNewContext(source, {
     Clutter: { CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 }, EVENT_STOP: 1, EVENT_PROPAGATE: 0 },
     contains: () => true,
