@@ -16,25 +16,31 @@ function actor(visible = true) {
     return {visible, hide() { this.visible = false; }, show() { this.visible = true; }};
 }
 
-test('export hides decorations and restores their original visibility on failure', () => {
+for (const guidesVisible of [true, false]) test(`export hides alignment guides (initially ${guidesVisible ? 'visible' : 'hidden'}) and restores them on success and failure`, () => {
     const view = Object.create(Overlay.prototype);
     Object.assign(view, {
         _shades: [actor(), actor(false)], _annotationDecorations: {actor: actor()}, _draft: {actor: actor()},
+        _guides: {actor: actor(guidesVisible)},
         _frame: actor(), _handles: [actor()], _dimensions: actor(), _hint: actor(false),
         _error: actor(), _toolbar: {actor: actor()}, _magnifier: {actor: actor()},
         _textEdit: {actor: actor()}, _annotations: {actor: actor(), prepareExport() {}},
     });
-    const hidden = [...view._shades, view._annotationDecorations.actor, view._draft.actor, view._frame,
-        ...view._handles, view._dimensions, view._hint, view._error, view._toolbar.actor,
+    const hidden = [...view._shades, view._annotationDecorations.actor, view._draft.actor, view._guides.actor,
+        view._frame, ...view._handles, view._dimensions, view._hint, view._error, view._toolbar.actor,
         view._magnifier.actor, view._textEdit.actor];
     const before = hidden.map(item => item.visible);
+    assert.equal(view._guides.actor.visible, guidesVisible);
     assert.throws(() => view.withExportContent(() => {
         assert.ok(hidden.every(item => !item.visible));
         assert.equal(view._annotations.actor.visible, true);
         throw new Error('capture failed');
     }), /capture failed/);
     assert.deepEqual(hidden.map(item => item.visible), before);
-    assert.equal(view.withExportContent(() => 42), 42);
+    assert.equal(view.withExportContent(() => {
+        assert.equal(view._guides.actor.visible, false);
+        return 42;
+    }), 42);
+    assert.deepEqual(hidden.map(item => item.visible), before);
 });
 
 test('export allocates committed annotations before capture', () => {
@@ -43,7 +49,7 @@ test('export allocates committed annotations before capture', () => {
     Object.assign(view, {_annotations: {prepareExport: () => calls.push('allocate')},
         _shades: [], _annotationDecorations: {actor: actor()}, _draft: {actor: actor()}, _frame: actor(),
         _handles: [], _dimensions: actor(), _hint: actor(), _error: actor(),
-        _toolbar: {actor: actor()}, _magnifier: {actor: actor()}});
+        _guides: {actor: actor()}, _toolbar: {actor: actor()}, _magnifier: {actor: actor()}});
     view.withExportContent(() => calls.push('capture'));
     assert.deepEqual(calls, ['allocate', 'capture']);
 });
@@ -74,7 +80,7 @@ test('rectangle motion routes changing drafts through the draft layer without ca
         actor: {set_cursor_type() {}}, _toolbar: {update() {}, place() {}},
         _dimensions: {show() {}, get_preferred_width: () => [0, 1],
             get_preferred_height: () => [0, 1], set_position() {}},
-        _hint: {hide() {}}, _magnifier: {update() {}}, _updateDecorations() {},
+        _hint: {hide() {}}, _magnifier: {update() {}}, _guides: {update() {}}, _updateDecorations() {},
         _annotations: {update(items) { calls.push(['committed', items]); }},
         _draft: {update(items) { calls.push(['draft', items[0].x2]); }},
         _annotationDecorations: {update() {}}});
@@ -101,7 +107,7 @@ test('moving a pixelation refreshes actors without preparing pixels', () => {
         actor: {set_cursor_type() {}}, _toolbar: {update() {}, place() {}},
         _dimensions: {show() {}, get_preferred_width: () => [0, 1],
             get_preferred_height: () => [0, 1], set_position() {}},
-        _hint: {hide() {}}, _magnifier: {update() {}}, _updateDecorations() {},
+        _hint: {hide() {}}, _magnifier: {update() {}}, _guides: {update() {}}, _updateDecorations() {},
         _annotations: {update(items) { positions.push(items[0].x1); }},
         _draft: {update() {}}, _annotationDecorations: {update() {}}});
     view._motion({x: 20, y: 20});

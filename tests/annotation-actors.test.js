@@ -60,7 +60,7 @@ class Effect {
 }
 const source = readFileSync(new URL('../src/ui/annotationActors.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '')
-    .replace('export class AnnotationActors', 'class AnnotationActors') + '\nthis.AnnotationActors = AnnotationActors;';
+    .replace(/^export function /gm, 'function ').replace('export class AnnotationActors', 'class AnnotationActors') + '\nthis.AnnotationActors = AnnotationActors;';
 const AnnotationActors = vm.runInNewContext(source, {
     Clutter: {Actor, Text: Actor, RotateAxis: {Z_AXIS: 2}, ScalingFilter: {NEAREST: 0}},
     St: {Widget: Actor, DrawingArea: class { constructor() { assert.fail('Annotation created a DrawingArea'); } }},
@@ -185,7 +185,7 @@ test('rectangle pointer motions update only draft geometry and repaint no legacy
         _toolbar: {update() {}, place() {}},
         _dimensions: {show() {}, get_preferred_width: () => [0, 1],
             get_preferred_height: () => [0, 1], set_position() {}},
-        _hint: {hide() {}}, _magnifier: {update() {}}, _updateDecorations() {},
+        _hint: {hide() {}}, _magnifier: {update() {}}, _guides: {update() {}}, _updateDecorations() {},
         _annotations: committed, _draft: draft, _annotationDecorations: {update() {}}});
     view._refresh();
     const before = writes(committed.actor);

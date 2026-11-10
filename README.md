@@ -45,6 +45,8 @@ Press **Alt+Shift+X**. Click a window, drag to select an area, or use **Ctrl+A**
 | Enter outside the text editor | Run the configured action |
 | Esc | Cancel text, deselect an annotation, or close the capture |
 
+Before a selection exists, and while creating or resizing one, a magnifier appears next to the pointer and two dotted guides cross at the pixel it marks, spanning the whole monitor under the pointer so you can line up distant edges. They need no setting and show no scale or measurements; they hide whenever the magnifier does and are never exported.
+
 The selection stays within a single monitor. Annotations retain their screen coordinates when the selection is adjusted. The file contains only the crop and its annotations; controls are never exported. The displayed dimensions correspond to the output pixels: a selection of 400 × 300 units on a monitor at 200% produces 800 × 600 pixels.
 
 In preferences, you can change the shortcut, the Enter action, the output folder and format (PNG/JPG), and the default annotation color and stroke width. The default folder is `~/screenshots`. A custom folder must start with `/` or `~/`. Files include the capture date and time; if the name already exists, a suffix is added without overwriting it. A save error preserves the session so you can try again.

@@ -26,7 +26,8 @@ test('magnifier uses the frozen texture and tracks physical pixels within the mo
     const magnifier = new Magnifier({content, scale: 2}, 800, 600);
     const viewport = magnifier.actor.children[0];
     assert.equal(viewport.children[0].content, content);
-    assert.equal(viewport.children.length, 10);
+    // Image, 8 faint extension lines, 8 tick lines and the centre box.
+    assert.equal(viewport.children.length, 18);
     magnifier.update({x: 99.6, y: 49.9}, {x: 0, y: 0, width: 800, height: 600}, true);
     assert.equal(magnifier.actor.visible, true);
     assert.deepEqual(Array.from(magnifier._image.position), [72 - 99.75 * 16, 72 - 49.75 * 16]);

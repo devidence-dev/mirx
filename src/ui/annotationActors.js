@@ -8,7 +8,7 @@ import {textFont} from '../rendering/annotations.js';
 import {arrowBars, effectTextureUniforms, ellipseUniforms, pixelateGeometry, pixelateUniforms, rectangleGeometry} from '../rendering/actorGeometry.js';
 import {ELLIPSE_CODE, ELLIPSE_DECLARATIONS, PIXELATE_CODE, PIXELATE_DECLARATIONS} from './shaders.js';
 
-function setUniforms(effect, values) {
+export function setUniforms(effect, values) {
     effect.locations ??= new Map();
     for (const [name, value] of Object.entries(values)) {
         if (!effect.locations.has(name))
@@ -18,7 +18,7 @@ function setUniforms(effect, values) {
     }
 }
 
-function textureUniforms(effect) {
+export function textureUniforms(effect) {
     const actor = effect.get_actor();
     const texture = effect.get_texture();
     return effectTextureUniforms(actor,

@@ -25,18 +25,26 @@ export class Magnifier {
         const line = (x, y, width, height, color) => {
             mark({x, y, width, height}, `background-color: ${color};`);
         };
-        for (const [x, y, width, height] of [
+        const cross = (segments, outline, core) => {
+            for (const [x, y, width, height] of segments) {
+                if (width) {
+                    line(x - 1.5, y - 1.5, width + 3, 3, outline);
+                    line(x, y - 0.5, width, 1, core);
+                } else {
+                    line(x - 1.5, y - 1.5, 3, height + 3, outline);
+                    line(x - 0.5, y, 1, height, core);
+                }
+            }
+        };
+        // Faint extensions from the ticks to the viewport edges; the centre pixel stays clear.
+        cross([
+            [0, c, c - 18, 0], [c + 18, c, c - 18, 0],
+            [c, 0, 0, c - 18], [c, c + 18, 0, c - 18],
+        ], 'rgba(0, 0, 0, 0.3)', 'rgba(255, 255, 255, 0.45)');
+        cross([
             [c - 18, c, 12, 0], [c + 6, c, 12, 0],
             [c, c - 18, 0, 12], [c, c + 6, 0, 12],
-        ]) {
-            if (width) {
-                line(x - 1.5, y - 1.5, width + 3, 3, 'rgba(0, 0, 0, 0.8)');
-                line(x, y - 0.5, width, 1, 'white');
-            } else {
-                line(x - 1.5, y - 1.5, 3, height + 3, 'rgba(0, 0, 0, 0.8)');
-                line(x - 0.5, y, 1, height, 'white');
-            }
-        }
+        ], 'rgba(0, 0, 0, 0.8)', 'white');
         mark({x: c - 4.5, y: c - 4.5, width: 9, height: 9}, 'border: 1px solid white;');
         this._label = new St.Label({y: SIZE + 3, style_class: 'mirx-coordinates'});
         this.actor.add_child(this._label);
