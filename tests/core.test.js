@@ -126,3 +126,22 @@ test('text measurements follow styles, and no-op actions preserve redo', () => {
     assert.equal(e.annotations[0].x2, 128);
     assert.equal(e.annotations[0].id, id);
 });
+
+test('a press strictly inside the selection near a corner draws, while a press just outside still resizes', () => {
+    const e = editor();
+    e.selectMonitor({x: 1, y: 1});
+    e.selection = {x: 100, y: 100, width: 200, height: 150};
+    e.setTool('rectangle');
+    e.pointerDown({x: 103, y: 103});
+    assert.equal(e.interaction, 'draw');
+    e.pointerMove({x: 150, y: 140});
+    e.pointerUp({x: 150, y: 140});
+    assert.deepEqual(e.selection, {x: 100, y: 100, width: 200, height: 150});
+    assert.equal(e.annotations.length, 1);
+    assert.equal(e.annotations[0].type, 'rectangle');
+    e.pointerDown({x: 97, y: 97});
+    assert.equal(e.interaction, 'selection-resize');
+    e.pointerMove({x: 90, y: 90});
+    e.pointerUp({x: 90, y: 90});
+    assert.deepEqual(e.selection, {x: 90, y: 90, width: 210, height: 160});
+});

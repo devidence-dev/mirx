@@ -66,14 +66,18 @@ export default class MirxPreferences extends ExtensionPreferences {
         addChoice('Acción de Enter', 'enter-action', ['copy', 'save'], ['Copiar', 'Guardar']);
         addChoice('Formato de imagen', 'format', ['PNG', 'JPG'], ['PNG', 'JPG']);
 
-        const folder = new Adw.EntryRow({title: 'Carpeta de capturas'});
+        const folder = new Adw.EntryRow({title: 'Carpeta de capturas', show_apply_button: true});
         folder.text = settings.get_string('folder');
         folder.connect('changed', () => {
             if (folder.text.startsWith('/') || folder.text.startsWith('~/')) {
                 folder.remove_css_class('error');
-                settings.set_string('folder', folder.text);
             } else {
                 folder.add_css_class('error');
+            }
+        });
+        folder.connect('apply', () => {
+            if (folder.text.startsWith('/') || folder.text.startsWith('~/')) {
+                settings.set_string('folder', folder.text);
             }
         });
         watch('changed::folder', () => { if (folder.text !== settings.get_string('folder')) folder.text = settings.get_string('folder'); });

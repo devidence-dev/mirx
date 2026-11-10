@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {pixelBlocks} from '../src/rendering/pixels.js';
+import {cropRect, pixelBlocks} from '../src/rendering/pixels.js';
 
 const bounds = (x, y, width, height) => ({x, y, width, height});
 
@@ -37,4 +37,14 @@ test('moving an area samples its new original position and leaves source unchang
     assert.deepEqual(pixelBlocks(image, bounds(0, 0, 2, 1), 2), [[0, 0, 2, 1, 1, 0, 0]]);
     assert.deepEqual(pixelBlocks(image, bounds(2, 0, 2, 1), 2), [[2, 0, 2, 1, 0, 0, 1]]);
     assert.deepEqual(pixels, before);
+});
+
+test('crops fractional-scale selections outward and clamps to the pixbuf', () => {
+    const stage = {width: 150, height: 75};
+    const sel = {x: 10.3, y: 5.1, width: 20.2, height: 10};
+    assert.deepEqual(cropRect(stage, 1.5, sel), {x: 15, y: 7, width: 31, height: 16});
+    assert.deepEqual(cropRect(stage, 1.5, sel, 2), {x: 13, y: 5, width: 35, height: 20});
+    assert.deepEqual(cropRect(stage, 1.5, {x: 90, y: 40, width: 20, height: 20}, 2),
+        {x: 133, y: 58, width: 17, height: 17});
+    assert.ok(cropRect(stage, 1.5, {x: 200, y: 0, width: 10, height: 10}).width <= 0);
 });
