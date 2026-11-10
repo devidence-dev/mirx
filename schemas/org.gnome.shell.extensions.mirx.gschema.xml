@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.mirx" path="/org/gnome/shell/extensions/mirx/">
-    <key name="shortcut" type="as"><default>['&lt;Alt&gt;&lt;Shift&gt;x']</default><summary>Atajo de captura</summary></key>
-    <key name="enter-action" type="s"><choices><choice value="copy"/><choice value="save"/></choices><default>'copy'</default><summary>Acción de Enter</summary></key>
-    <key name="folder" type="s"><default>'~/Imágenes/Capturas'</default><summary>Carpeta de capturas</summary></key>
-    <key name="format" type="s"><choices><choice value="PNG"/><choice value="JPG"/></choices><default>'PNG'</default><summary>Formato de imagen</summary></key>
-    <key name="default-color" type="s"><default>'#ff0000'</default><summary>Color predeterminado</summary></key>
-    <key name="default-width" type="i"><range min="1" max="30"/><default>3</default><summary>Grosor predeterminado</summary></key>
+    <key name="shortcut" type="as"><default>['&lt;Alt&gt;&lt;Shift&gt;x']</default><summary>Capture shortcut</summary></key>
+    <key name="enter-action" type="s"><choices><choice value="copy"/><choice value="save"/></choices><default>'copy'</default><summary>Enter action</summary></key>
+    <key name="folder" type="s"><default>'~/screenshots'</default><summary>Capture folder</summary></key>
+    <key name="export-engine" type="s"><choices><choice value="cairo"/><choice value="gpu"/><choice value="compare"/></choices><default>'cairo'</default><summary>Export engine</summary></key>
+    <key name="perf-log" type="b"><default>false</default><summary>Log pointer motion performance</summary></key>
+    <key name="format" type="s"><choices><choice value="PNG"/><choice value="JPG"/></choices><default>'PNG'</default><summary>Image format</summary></key>
+    <key name="default-color" type="s"><default>'#ff0000'</default><summary>Default color</summary></key>
+    <key name="default-width" type="i"><range min="1" max="30"/><default>3</default><summary>Default width</summary></key>
   </schema>
 </schemalist>

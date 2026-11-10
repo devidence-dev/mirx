@@ -4,6 +4,7 @@ import GLib from 'gi://GLib';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import St from 'gi://St';
 
+import {physicalRect} from '../core/geometry.js';
 import {renderAnnotations} from '../rendering/annotations.js';
 import {cropRect} from '../rendering/pixels.js';
 
@@ -27,12 +28,15 @@ export class ImageOutput {
 
     async render({pixbuf, scale = 1}, selection, annotations, monitor) {
         const outputScale = monitor?.scale ?? monitor?.scaleFactor ?? scale;
-        const width = Math.round(selection.width * outputScale);
-        const height = Math.round(selection.height * outputScale);
+        const physical = physicalRect(selection, outputScale);
+        const width = physical.width, height = physical.height;
         if (width <= 0 || height <= 0)
             throw new Error('The selection is empty');
+        // Same grid: crop exactly and paint 1:1, so no resampling and no margin are needed.
+        const exact = Math.abs(scale - outputScale) < 1e-6 && physical.x + physical.width <= pixbuf.get_width() &&
+            physical.y + physical.height <= pixbuf.get_height();
         // Margin keeps the pixels cairo's scaling filter samples around the selection edges.
-        const crop = cropRect({width: pixbuf.get_width(), height: pixbuf.get_height()}, scale, selection,
+        const crop = exact ? physical : cropRect({width: pixbuf.get_width(), height: pixbuf.get_height()}, scale, selection,
             Math.ceil(scale / outputScale) + 1);
         if (crop.width <= 0 || crop.height <= 0)
             throw new Error('The selection is empty');
@@ -44,13 +48,20 @@ export class ImageOutput {
             try {
                 surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, width, height);
                 cr = new Cairo.Context(surface);
-                cr.scale(outputScale, outputScale);
-                cr.translate(-selection.x, -selection.y);
-                cr.save();
-                cr.scale(1 / scale, 1 / scale);
-                cr.setSourceSurface(source, crop.x, crop.y);
-                cr.paint();
-                cr.restore();
+                if (exact) {
+                    cr.setSourceSurface(source, 0, 0);
+                    cr.paint();
+                    cr.scale(outputScale, outputScale);
+                    cr.translate(-physical.x / outputScale, -physical.y / outputScale);
+                } else {
+                    cr.scale(outputScale, outputScale);
+                    cr.translate(-selection.x, -selection.y);
+                    cr.save();
+                    cr.scale(1 / scale, 1 / scale);
+                    cr.setSourceSurface(source, crop.x, crop.y);
+                    cr.paint();
+                    cr.restore();
+                }
                 renderAnnotations(cr, annotations, {pixbuf, scale});
                 surface.writeToPNG(path);
                 return GdkPixbuf.Pixbuf.new_from_file(path);
@@ -71,7 +82,7 @@ export class ImageOutput {
             throw new Error('Could not encode screenshot');
         St.Clipboard.get_default().set_content(St.ClipboardType.CLIPBOARD,
             'image/png', GLib.Bytes.new(bytes));
-        this._notify('Captura copiada', 'La imagen se copió al portapapeles.');
+        this._notify('Capture copied', 'The image was copied to the clipboard.');
     }
 
     async save(snapshot, selection, annotations, monitor, {folder, format = 'PNG'},
@@ -82,7 +93,7 @@ export class ImageOutput {
         const directory = folder === '~' ? GLib.get_home_dir() :
             folder.startsWith('~/') ? GLib.build_filenamev([GLib.get_home_dir(), folder.slice(2)]) : folder;
         if (!GLib.path_is_absolute(directory))
-            throw new Error('La carpeta debe ser una ruta absoluta o comenzar con ~/');
+            throw new Error('The folder must be an absolute path or start with ~/');
         const dir = Gio.File.new_for_path(directory);
         try {
             dir.make_directory_with_parents(null);
@@ -113,7 +124,7 @@ export class ImageOutput {
                 throw error;
             }
             const path = file.get_path();
-            this._notify('Captura guardada', path);
+            this._notify('Capture saved', path);
             return path;
         }
     }

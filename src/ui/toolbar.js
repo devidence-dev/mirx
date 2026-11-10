@@ -3,13 +3,13 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 const TOOLS = [
-    [null, '↖', 'Seleccionar y mover'], ['arrow', '↗', 'Flecha'],
-    ['rectangle', '□', 'Rectángulo'], ['circle', '○', 'Elipse (Shift: círculo)'],
-    ['highlighter', '▰', 'Resaltador'], ['pixelate', '▦', 'Pixelar'], ['text', 'T', 'Texto'],
+    [null, '↖', 'Select and move'], ['arrow', '↗', 'Arrow'],
+    ['rectangle', '□', 'Rectangle'], ['circle', '○', 'Ellipse (Shift: circle)'],
+    ['highlighter', '▰', 'Highlighter'], ['pixelate', '▦', 'Pixelate'], ['text', 'T', 'Text'],
 ];
 const COLORS = [
-    ['#ff0000', 'Rojo'], ['#ffcc00', 'Amarillo'], ['#00cc66', 'Verde'],
-    ['#0088ff', 'Azul'], ['#cc55ff', 'Violeta'], ['#ffffff', 'Blanco'], ['#000000', 'Negro'],
+    ['#ff0000', 'Red'], ['#ffcc00', 'Yellow'], ['#00cc66', 'Green'],
+    ['#0088ff', 'Blue'], ['#cc55ff', 'Violet'], ['#ffffff', 'White'], ['#000000', 'Black'],
 ];
 
 export class Toolbar {
@@ -33,8 +33,8 @@ export class Toolbar {
             tools.add_child(button);
             this._tools.set(tool, button);
         }
-        tools.add_child(this._button('↶', 'Deshacer (Ctrl+Z)', onUndo));
-        tools.add_child(this._button('↷', 'Rehacer (Ctrl+Shift+Z)', onRedo));
+        tools.add_child(this._button('↶', 'Undo (Ctrl+Z)', onUndo));
+        tools.add_child(this._button('↷', 'Redo (Ctrl+Shift+Z)', onRedo));
         this.actor.add_child(this._toolLabel);
 
         const style = new St.BoxLayout({style_class: 'mirx-row'});
@@ -46,16 +46,16 @@ export class Toolbar {
             style.add_child(button);
             this._colors.set(color, button);
         }
-        style.add_child(this._button('−', 'Reducir grosor', () => onStyle({width: Math.max(1, this._width - 1)})));
+        style.add_child(this._button('−', 'Decrease width', () => onStyle({width: Math.max(1, this._width - 1)})));
         this._widthLabel = new St.Label({text: '3 px', y_align: Clutter.ActorAlign.CENTER});
         style.add_child(this._widthLabel);
-        style.add_child(this._button('+', 'Aumentar grosor', () => onStyle({width: Math.min(30, this._width + 1)})));
+        style.add_child(this._button('+', 'Increase width', () => onStyle({width: Math.min(30, this._width + 1)})));
 
         const actions = new St.BoxLayout({style_class: 'mirx-row'});
         this.actor.add_child(actions);
-        actions.add_child(this._button('Copiar', 'Copiar (Ctrl+C)', () => onExport('copy')));
-        actions.add_child(this._button('Guardar', 'Guardar (Ctrl+S)', () => onExport('save')));
-        actions.add_child(this._button('Cancelar', 'Cancelar (Esc)', onCancel));
+        actions.add_child(this._button('Copy', 'Copy (Ctrl+C)', () => onExport('copy')));
+        actions.add_child(this._button('Save', 'Save (Ctrl+S)', () => onExport('save')));
+        actions.add_child(this._button('Cancel', 'Cancel (Esc)', onCancel));
     }
 
     _button(label, name, callback) {

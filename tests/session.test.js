@@ -31,6 +31,7 @@ function fixture() {
                 destroy() { this.destroys++; },
                 setBusy(value) { this.busy.push(value); },
                 showError(message) { this.errors.push(message); },
+                withExportContent(callback) { return callback(); },
             };
             views.push(view);
             return view;
@@ -88,7 +89,7 @@ test('capture failure reports the error and permits a new session', async () => 
     const opening = f.session.open();
     f.captures[0].reject(new Error('capture failed'));
     await opening;
-    assert.deepEqual(f.notifications, [['No se pudo capturar la pantalla', 'capture failed']]);
+    assert.deepEqual(f.notifications, [['Could not capture the screen', 'capture failed']]);
     const view = await f.open();
     assert.equal(view.opens, 1);
     assert.equal(f.captures.length, 2);
@@ -105,7 +106,7 @@ test('save failure keeps the editor and overlay intact and clears busy state', a
     assert.equal(view.destroys, 0);
     assert.deepEqual(view.busy, [true, false]);
     assert.deepEqual(view.errors, ['disk full']);
-    assert.deepEqual(f.notifications, [['No se pudo exportar la captura', 'disk full']]);
+    assert.deepEqual(f.notifications, [['Could not export the capture', 'disk full']]);
     f.setOutput(() => Promise.resolve());
     await view.onExport('save');
     assert.equal(view.destroys, 1);
@@ -217,7 +218,7 @@ test('modal open failure destroys the view and allows recovery', async () => {
     });
     await session.open();
     assert.equal(views[0].destroyed, 1);
-    assert.deepEqual(errors, [['No se pudo capturar la pantalla', 'modal unavailable']]);
+    assert.deepEqual(errors, [['Could not capture the screen', 'modal unavailable']]);
     await session.open();
     assert.equal(views.length, 2);
     assert.equal(views[1].destroyed, 0);
@@ -237,4 +238,51 @@ test('export waits for the background pixbuf before copying', async () => {
     await exporting;
     assert.equal(f.calls.length, 1);
     assert.equal(f.calls[0].action, 'copy');
+});
+
+
+test('GPU export only requests the pixbuf when pixelation needs it', async () => {
+    for (const [engine, pixelate, expected] of [['gpu', false, false], ['gpu', true, true],
+        ['compare', false, true], ['cairo', false, true]]) {
+        const f = fixture();
+        f.setConfig({color: '#f00', width: 3, exportEngine: engine});
+        const opening = f.session.open();
+        let requests = 0;
+        const captured = {...snapshot, get pixbufReady() { requests++; return Promise.resolve(); }};
+        f.captures[0].resolve(captured);
+        await opening;
+        const view = f.views[0];
+        select(view);
+        if (pixelate)
+            view.editor.annotations.push({type: 'pixelate'});
+        await view.onExport('copy');
+        assert.equal(requests > 0, expected, `${engine}, pixelate=${pixelate}`);
+        const operation = f.calls[0].args[4];
+        assert.equal(operation.withExportContent(() => 'painted'), 'painted');
+    }
+});
+
+
+test('GPU pixelation prepares cropped pixels without requesting the full pixbuf', async () => {
+    const f = fixture();
+    f.setConfig({color: '#f00', width: 3, exportEngine: 'gpu'});
+    const opening = f.session.open();
+    const pending = deferred();
+    let preparedAnnotations;
+    const captured = {...snapshot,
+        get pixbufReady() { throw new Error('full pixbuf requested'); },
+        ensurePixelation(annotations) { preparedAnnotations = annotations; return pending.promise; },
+    };
+    f.captures[0].resolve(captured);
+    await opening;
+    const view = f.views[0];
+    select(view);
+    view.editor.annotations.push({type: 'pixelate'});
+    const exporting = view.onExport('copy');
+    assert.equal(preparedAnnotations, view.editor.annotations);
+    assert.equal(f.calls.length, 0);
+    f.setConfig({exportEngine: 'cairo'});
+    pending.resolve();
+    await exporting;
+    assert.equal(f.calls[0].args[4].engine, 'gpu');
 });

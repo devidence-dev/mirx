@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt} from '../src/core/geometry.js';
+import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt, physicalRect, alignedPaintRect} from '../src/core/geometry.js';
 import {Editor, annotationHit} from '../src/core/editor.js';
 
 test('selection handles remain available while an annotation tool is active', () => {
@@ -145,4 +145,36 @@ test('a press strictly inside the selection near a corner draws, while a press j
     e.pointerMove({x: 90, y: 90});
     e.pointerUp({x: 90, y: 90});
     assert.deepEqual(e.selection, {x: 90, y: 90, width: 210, height: 160});
+});
+
+test('physicalRect rounds both edges so the size matches the pixel grid', () => {
+    const s = 1.3333333730697632;
+    // x 10*s = 13.33 -> 13, y 7*s = 9.33 -> 9; right 610*s = 813.33 -> 813, bottom 407*s = 542.67 -> 543.
+    assert.deepEqual(physicalRect({x: 10, y: 7, width: 600, height: 400}, s), {x: 13, y: 9, width: 800, height: 534});
+    assert.deepEqual(physicalRect({x: 3, y: 4, width: 5, height: 6}, 2), {x: 6, y: 8, width: 10, height: 12});
+    assert.deepEqual(physicalRect({x: 10, y: 7, width: 600, height: 400}, 1), {x: 10, y: 7, width: 600, height: 400});
+});
+
+test('alignedPaintRect covers the physical rect with a grid-aligned logical origin', () => {
+    const s = 1.3333333730697632;
+    // q = 3 (3*s = 4.0000001). x: 13/s/3 = 3.25 -> 3 -> 9; y: 9/s/3 = 2.25 -> 2 -> 6;
+    // right: 813/s/3 = 203.25 -> 204 -> 612; bottom: 543/s/3 = 135.75 -> 136 -> 408.
+    // offsets: 13 - round(9*s = 12) = 1, 9 - round(6*s = 8) = 1; texture 804x536 holds 1+800 and 1+534.
+    assert.deepEqual(alignedPaintRect(physicalRect({x: 10, y: 7, width: 600, height: 400}, s), s),
+        {rect: {x: 9, y: 6, width: 603, height: 402}, offsetX: 1, offsetY: 1});
+    // Integer scales: q = 1, the rect is the selection and offsets are 0.
+    assert.deepEqual(alignedPaintRect(physicalRect({x: 10, y: 7, width: 600, height: 400}, 1), 1),
+        {rect: {x: 10, y: 7, width: 600, height: 400}, offsetX: 0, offsetY: 0});
+    // Scale 2: physical {20, 14, 1200, 800} -> logical {10, 7, 600, 400}, offsets 0.
+    assert.deepEqual(alignedPaintRect(physicalRect({x: 10, y: 7, width: 600, height: 400}, 2), 2),
+        {rect: {x: 10, y: 7, width: 600, height: 400}, offsetX: 0, offsetY: 0});
+    // Scale 1.25: q = 4 (4*1.25 = 5). physical: x 12.5 -> 13, y 8.75 -> 9, right 762.5 -> 763, bottom 508.75 -> 509,
+    // so {13, 9, 750, 500}. Aligned x: 13/1.25/4 = 2.6 -> 2 -> 8; y: 9/1.25/4 = 1.8 -> 1 -> 4;
+    // right: 763/1.25/4 = 152.6 -> 153 -> 612; bottom: 509/1.25/4 = 101.8 -> 102 -> 408.
+    // offsets: 13 - 8*1.25 = 3, 9 - 4*1.25 = 4.
+    const p = physicalRect({x: 10, y: 7, width: 600, height: 400}, 1.25);
+    assert.deepEqual(p, {x: 13, y: 9, width: 750, height: 500});
+    assert.deepEqual(alignedPaintRect(p, 1.25), {rect: {x: 8, y: 4, width: 604, height: 404}, offsetX: 3, offsetY: 4});
+    // 1.37 has no q in 1..16 with q*scale within 1e-4 of an integer.
+    assert.equal(alignedPaintRect({x: 14, y: 10, width: 822, height: 548}, 1.37), null);
 });

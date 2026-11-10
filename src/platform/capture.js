@@ -6,6 +6,10 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 /** Shell-only adapter: no portal, subprocess, cursor, or remote service. */
 export class ScreenCapture {
+    constructor({preparePixelation} = {}) {
+        this._preparePixelation = preparePixelation;
+    }
+
     async capture() {
         const monitors = Main.layoutManager.monitors.map((monitor, index) => ({
             x: monitor.x, y: monitor.y,
@@ -13,7 +17,7 @@ export class ScreenCapture {
             scale: global.display.get_monitor_scale(index),
         }));
         if (!monitors.length)
-            throw new Error('No hay monitores disponibles');
+            throw new Error('No monitors available');
         const workspace = global.workspace_manager.get_active_workspace();
         const windows = global.display.sort_windows_by_stacking(workspace.list_windows())
             .reverse()
@@ -35,23 +39,31 @@ export class ScreenCapture {
             });
         });
         const snapshot = {content, pixbuf: null, scale, monitors, windows, capturedAt};
-        const stream = Gio.MemoryOutputStream.new_resizable();
-        // Slow PNG encoding runs in the background so the overlay opens without waiting for it.
-        snapshot.pixbufReady = new Promise((resolve, reject) => {
-            Shell.Screenshot.composite_to_stream(content.get_texture(),
-                0, 0, -1, -1, 1, null, 0, 0, 1, stream,
-                (_source, result) => {
-                    try {
-                        resolve(Shell.Screenshot.composite_to_stream_finish(result));
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-        }).then(pixbuf => {
-            snapshot.pixbuf = pixbuf;
-            return pixbuf;
-        }).finally(() => stream.close(null));
-        snapshot.pixbufReady.catch(() => {});
+        let pixbufReady;
+        snapshot.ensurePixbuf = () => {
+            if (pixbufReady)
+                return pixbufReady;
+            const stream = Gio.MemoryOutputStream.new_resizable();
+            pixbufReady = new Promise((resolve, reject) => {
+                Shell.Screenshot.composite_to_stream(content.get_texture(),
+                    0, 0, -1, -1, 1, null, 0, 0, 1, stream,
+                    (_source, result) => {
+                        try {
+                            resolve(Shell.Screenshot.composite_to_stream_finish(result));
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
+            }).then(pixbuf => {
+                snapshot.pixbuf = pixbuf;
+                return pixbuf;
+            }).finally(() => stream.close(null));
+            pixbufReady.catch(() => {});
+            return pixbufReady;
+        };
+        snapshot.ensurePixelation = annotations => this._preparePixelation
+            ? this._preparePixelation(snapshot, annotations) : snapshot.ensurePixbuf();
+        Object.defineProperty(snapshot, 'pixbufReady', {get: () => snapshot.ensurePixbuf()});
         return snapshot;
     }
 }
