@@ -62,7 +62,7 @@ In preferences, you can change the shortcut, the Enter action, the output folder
 
 Application dependencies are passed to the constructor, allowing the adapters to be replaced in tests. `CommandHistory` records one operation per gesture and discards the redo branch when a new action is created. The view and export share annotation rendering; decorations are separate. Text is measured using Pango, with the measurement injected into the model.
 
-Capture uses `Shell.Screenshot.screenshot_stage_to_content()` and excludes the cursor texture. The integration follows the [GNOME Shell 50 APIs](https://github.com/GNOME/gnome-shell/blob/gnome-50/js/ui/screenshot.js). The bridge between Cairo and GdkPixbuf uses a private temporary file, deleted on completion or error. No capture history is stored.
+Capture uses `Shell.Screenshot.screenshot_stage_to_content()` and excludes the cursor texture. The integration follows the [GNOME Shell 50 APIs](https://github.com/GNOME/gnome-shell/blob/gnome-50/js/ui/screenshot.js). Annotations and exports share GPU actors and shaders. Export paints the selection on the physical pixel grid; clipboard and PNG saves reuse the compositor's PNG bytes, while JPG saves encode the returned pixbuf. No capture history is stored.
 
 ## Validation
 

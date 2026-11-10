@@ -25,7 +25,7 @@ export class CaptureSession {
             });
             this._view = this.createView({snapshot, editor,
                 onCancel: () => this.close(),
-                onExport: action => this.export(action, snapshot, editor),
+                onExport: (action, onComplete) => this.export(action, snapshot, editor, onComplete),
                 enterAction: () => this.settings().enterAction,
             });
             this._view.open();
@@ -37,24 +37,20 @@ export class CaptureSession {
         }
     }
 
-    async export(action, snapshot, editor) {
+    async export(action, snapshot, editor, onComplete) {
         if (!this._active || !editor.selection || this._exporting)
             return;
         const generation = this._generation;
         const view = this._view;
         const config = this.settings();
         const operation = {
-            engine: config.exportEngine ?? 'cairo',
+            onComplete,
             isCancelled: () => generation !== this._generation,
             withExportContent: callback => view.withExportContent(callback),
         };
         this._exporting = true;
         this._view?.setBusy(true);
         try {
-            if (operation.engine !== 'gpu')
-                await snapshot.pixbufReady;
-            if (operation.isCancelled())
-                return;
             if (action === 'save')
                 await this.output.save(snapshot, editor.selection, editor.annotations,
                     editor.monitor, config, operation);
