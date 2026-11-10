@@ -11,29 +11,14 @@ function drawHandles(cr, points) {
     }
 }
 
+export function decorationRect(editor) {
+    return editor.selection ?? (editor.draft?.type ? null : editor.draft) ?? editor.hover;
+}
+
 /** Presentation only: this module is never called by the image output adapter. */
-export function drawDecorations(cr, editor, stageWidth, stageHeight) {
-    const selection = editor.selection ?? (editor.draft?.type ? null : editor.draft) ?? editor.hover;
+export function drawDecorations(cr, editor) {
     cr.save();
-    cr.setSourceRGBA(0, 0, 0, 0.48);
-    if (selection) {
-        const {x, y, width, height} = selection;
-        cr.rectangle(0, 0, stageWidth, y);
-        cr.rectangle(0, y + height, stageWidth, stageHeight - y - height);
-        cr.rectangle(0, y, x, height);
-        cr.rectangle(x + width, y, stageWidth - x - width, height);
-    } else {
-        cr.rectangle(0, 0, stageWidth, stageHeight);
-    }
-    cr.fill();
-    if (selection) {
-        cr.setLineWidth(1);
-        cr.setSourceRGB(0.2, 0.65, 1);
-        cr.rectangle(selection.x, selection.y, selection.width, selection.height);
-        cr.stroke();
-        if (editor.selection)
-            drawHandles(cr, handles(editor.selection));
-    }
+    cr.setLineWidth(1);
     const annotation = editor.annotations.find(a => a.id === editor.selectedId);
     if (annotation) {
         const bounds = annotationRect(annotation);
