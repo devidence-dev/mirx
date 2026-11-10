@@ -68,7 +68,9 @@ test('rectangle motion routes changing drafts through the draft layer without ca
         pointerMove(point) { this.draft = {id: 3, type: 'rectangle', x1: 1, y1: 1, x2: point.x, y2: point.y}; }};
     Object.assign(view, {editor, perfLog: () => false, _busy: false, _dragging: true, _selectionDrag: false,
         _pointOf: event => event, _options: () => ({}), _isControl: () => false,
-        snapshot: {monitors: [editor.monitor]},
+        snapshot: {monitors: [editor.monitor],
+            ensurePixelation() { throw new Error('pixelation tiles requested'); },
+            get pixbufReady() { throw new Error('full pixbuf requested'); }},
         actor: {set_cursor_type() {}}, _toolbar: {update() {}, place() {}},
         _dimensions: {show() {}, get_preferred_width: () => [0, 1],
             get_preferred_height: () => [0, 1], set_position() {}},
@@ -81,4 +83,28 @@ test('rectangle motion routes changing drafts through the draft layer without ca
     assert.equal(calls[0][1], committed);
     assert.equal(calls[2][1], committed);
     assert.deepEqual(calls.filter(call => call[0] === 'draft').map(call => call[1]), [10, 20]);
+});
+
+test('moving a pixelation refreshes actors without preparing pixels', () => {
+    const selection = {x: 0, y: 0, width: 100, height: 100};
+    const annotation = {id: 1, type: 'pixelate', x1: 1, y1: 1, x2: 10, y2: 10};
+    const positions = [];
+    const editor = {annotations: [annotation], selection, monitor: {...selection, scale: 1},
+        tool: null, style: {}, selectedId: 1, draft: null,
+        pointerMove(point) { annotation.x1 = point.x; }};
+    const view = Object.create(Overlay.prototype);
+    Object.assign(view, {editor, perfLog: () => false, _busy: false, _dragging: true, _selectionDrag: false,
+        _pointOf: event => event, _options: () => ({}), _isControl: () => false,
+        snapshot: {monitors: [editor.monitor],
+            ensurePixelation() { throw new Error('pixelation tiles requested'); },
+            get pixbufReady() { throw new Error('full pixbuf requested'); }},
+        actor: {set_cursor_type() {}}, _toolbar: {update() {}, place() {}},
+        _dimensions: {show() {}, get_preferred_width: () => [0, 1],
+            get_preferred_height: () => [0, 1], set_position() {}},
+        _hint: {hide() {}}, _magnifier: {update() {}}, _updateDecorations() {},
+        _annotations: {update(items) { positions.push(items[0].x1); }},
+        _draft: {update() {}}, _annotationDecorations: {update() {}}});
+    view._motion({x: 20, y: 20});
+    view._motion({x: 30, y: 30});
+    assert.deepEqual(positions, [20, 30]);
 });

@@ -241,9 +241,9 @@ test('export waits for the background pixbuf before copying', async () => {
 });
 
 
-test('GPU export only requests the pixbuf when pixelation needs it', async () => {
-    for (const [engine, pixelate, expected] of [['gpu', false, false], ['gpu', true, true],
-        ['compare', false, true], ['cairo', false, true]]) {
+test('GPU export does not request a pixbuf, while Cairo and compare do', async () => {
+    for (const [engine, pixelate, expected] of [['gpu', false, false], ['gpu', true, false],
+        ['compare', false, true], ['compare', true, true], ['cairo', false, true], ['cairo', true, true]]) {
         const f = fixture();
         f.setConfig({color: '#f00', width: 3, exportEngine: engine});
         const opening = f.session.open();
@@ -263,26 +263,20 @@ test('GPU export only requests the pixbuf when pixelation needs it', async () =>
 });
 
 
-test('GPU pixelation prepares cropped pixels without requesting the full pixbuf', async () => {
+test('GPU pixelation exports without preparing pixel data', async () => {
     const f = fixture();
     f.setConfig({color: '#f00', width: 3, exportEngine: 'gpu'});
     const opening = f.session.open();
-    const pending = deferred();
-    let preparedAnnotations;
     const captured = {...snapshot,
         get pixbufReady() { throw new Error('full pixbuf requested'); },
-        ensurePixelation(annotations) { preparedAnnotations = annotations; return pending.promise; },
+        ensurePixelation() { throw new Error('pixelation tiles requested'); },
     };
     f.captures[0].resolve(captured);
     await opening;
     const view = f.views[0];
     select(view);
     view.editor.annotations.push({type: 'pixelate'});
-    const exporting = view.onExport('copy');
-    assert.equal(preparedAnnotations, view.editor.annotations);
-    assert.equal(f.calls.length, 0);
-    f.setConfig({exportEngine: 'cairo'});
-    pending.resolve();
-    await exporting;
+    await view.onExport('copy');
+    assert.equal(f.calls.length, 1);
     assert.equal(f.calls[0].args[4].engine, 'gpu');
 });

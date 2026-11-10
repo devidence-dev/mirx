@@ -339,25 +339,6 @@ export class Overlay {
         // Each repaint is a software render plus a GPU upload of the whole canvas, so the canvases
         // cover only what they draw and the committed layer repaints only when its content changes.
         const {annotations, draft} = this.editor;
-        const pixelations = [...annotations, ...(draft?.type ? [draft] : [])]
-            .filter(annotation => annotation.type === 'pixelate');
-        const pixelationKey = JSON.stringify(pixelations);
-        if (pixelations.length && pixelationKey !== this._pixelationKey) {
-            this._pixelationKey = pixelationKey;
-            const pending = this.snapshot.ensurePixelation?.(pixelations) ?? this.snapshot.pixbufReady;
-            pending?.then(() => {
-                if (!this._destroyed) {
-                    this._annotations.invalidatePixels();
-                    this._draft.invalidatePixels();
-                    this._refresh();
-                }
-            }).catch(() => {
-                if (this._pixelationKey === pixelationKey)
-                    this._pixelationKey = null;
-            });
-        } else if (!pixelations.length) {
-            this._pixelationKey = null;
-        }
         this._annotations.update(annotations, selection, this._textEdit?.id ?? null);
         // The arrow head and the stroke reach past the draft's corner points.
         this._draft.update(draft?.type ? [draft] : [], selection);

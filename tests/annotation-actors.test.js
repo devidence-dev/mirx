@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
-import {arrowBars, rectangleGeometry} from '../src/rendering/actorGeometry.js';
+import {arrowBars, effectTextureUniforms, ellipseUniforms, pixelateGeometry, pixelateUniforms, rectangleGeometry} from '../src/rendering/actorGeometry.js';
+import * as shaders from '../src/ui/shaders.js';
 import {Editor} from '../src/core/editor.js';
 import {contains, physicalRect} from '../src/core/geometry.js';
 
@@ -23,7 +24,7 @@ class Actor {
     destroy() { this.destroyed = true; this.parent.children.splice(this.parent.children.indexOf(this), 1); }
     set_clip(...value) { this.clip = value; this.writes++; }
     set_position(...value) { this.position = value; this.writes++; }
-    set_size(...value) { this.size = value; this.writes++; }
+    set_size(...value) { this.size = value; [this.width, this.height] = value; this.writes++; }
     set_style(value) { this.style = value; this.writes++; this.styleWrites++; }
     set_pivot_point(...value) { this.pivot = value; this.writes++; }
     set_rotation_angle(...value) { this.rotation = value; this.writes++; }
@@ -34,22 +35,45 @@ class Actor {
     hide() { this.visible = false; this.writes++; }
     connect() {}
     queue_repaint() { this.repaints++; }
+    queue_redraw() { this.redraws = (this.redraws ?? 0) + 1; }
+    add_effect(effect) { this.effect = effect; effect.actor = this; }
+    set_content_scaling_filters(...value) { this.filters = value; }
+    get_resource_scale() { return this.resourceScale ?? 1; }
     get_allocation_box() {}
+}
+class Effect {
+    constructor() { this.uniforms = {}; this.vfunc_build_pipeline(); }
+    add_glsl_snippet(...value) { this.snippet = value; }
+    get_uniform_location(name) { return name; }
+    set_uniform_float(name, components, value) {
+        assert.equal(arguments.length, 3);
+        assert.equal(components, value.length);
+        this.uniforms[name] = Array.from(value);
+    }
+    get_actor() { return this.actor; }
+    get_texture() {
+        const scale = this.actor.get_resource_scale();
+        return {get_width: () => (Math.round(this.actor.width) + 3) * scale,
+            get_height: () => (Math.round(this.actor.height) + 3) * scale};
+    }
+    vfunc_paint_target() { this.paints = (this.paints ?? 0) + 1; }
 }
 const source = readFileSync(new URL('../src/ui/annotationActors.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '')
     .replace('export class AnnotationActors', 'class AnnotationActors') + '\nthis.AnnotationActors = AnnotationActors;';
 const AnnotationActors = vm.runInNewContext(source, {
-    Clutter: {Actor, Text: Actor, RotateAxis: {Z_AXIS: 2}},
-    St: {Widget: Actor, DrawingArea: Actor}, Cogl: {Color: {from_string: color => [true, color]}},
-    annotationBounds: a => ({x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2),
-        width: Math.abs(a.x2 - a.x1), height: Math.abs(a.y2 - a.y1)}),
-    renderAnnotations() {}, textFont: width => `Sans ${width}`, arrowBars, rectangleGeometry,
+    Clutter: {Actor, Text: Actor, RotateAxis: {Z_AXIS: 2}, ScalingFilter: {NEAREST: 0}},
+    St: {Widget: Actor, DrawingArea: class { constructor() { assert.fail('Annotation created a DrawingArea'); } }},
+    Cogl: {Color: {from_string: color => [true, color]}, SnippetHook: {FRAGMENT: 2048, TEXTURE_LOOKUP: 6145}},
+    Shell: {GLSLEffect: Effect}, GObject: {registerClass: klass => klass}, ...shaders,
+    textFont: width => `Sans ${width}`, arrowBars, rectangleGeometry,
+    effectTextureUniforms, ellipseUniforms, pixelateGeometry, pixelateUniforms,
 });
 const selection = {x: 10, y: 20, width: 200, height: 100};
 const item = (id, type) => ({id, type, x1: 30, y1: 40, x2: 90, y2: 80,
     width: 3, color: '#ff0000', text: 'hello\nworld'});
-const create = () => new AnnotationActors({snapshot: {scale: 1}, width: 500, height: 400});
+const content = {};
+const create = (snapshot = {scale: 1, content}) => new AnnotationActors({snapshot, width: 500, height: 400});
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function writes(actor) { return actor.writes + actor.children.reduce((n, child) => n + writes(child), 0); }
@@ -68,7 +92,7 @@ test('mixed annotations retain model stacking order and a single selection clip'
 
 test('mutation, style, and history snapshots update actors in place; removal and re-add create actors', () => {
     const renderer = create();
-    const original = [item(1, 'rectangle'), item(2, 'arrow'), item(3, 'text')];
+    const original = ['rectangle', 'arrow', 'text', 'circle', 'pixelate'].map((type, i) => item(i + 1, type));
     renderer.update(original, selection);
     const actors = original.map(a => renderer._entries.get(a.id).actor);
     const changed = original.map(a => ({...a, x1: a.x1 + 7, width: 6, color: '#00ff00'}));
@@ -78,9 +102,9 @@ test('mutation, style, and history snapshots update actors in place; removal and
     renderer.update(changed.map(a => ({...a})), selection); // redo
     assert.deepEqual(changed.map(a => renderer._entries.get(a.id).actor), actors);
     renderer.update(changed.slice(0, 2), selection);
-    assert.equal(actors[2].destroyed, true);
+    for (const actor of actors.slice(2)) assert.equal(actor.destroyed, true);
     renderer.update(changed, selection);
-    assert.notEqual(renderer._entries.get(3).actor, actors[2]);
+    for (let i = 2; i < actors.length; i++) assert.notEqual(renderer._entries.get(i + 1).actor, actors[i]);
 });
 
 test('editing hides only the existing text actor and restores its updated contents', () => {
@@ -107,10 +131,10 @@ test('unchanged mixed committed annotations cause no actor writes or fallback re
     assert.deepEqual(renderer.actor.children.map(a => a.repaints), repaints);
 });
 
-test('editor undo and redo create and destroy actors only when annotation ids enter or leave', () => {
+for (const type of ['rectangle', 'circle', 'pixelate']) test(`${type}: editor history creates and destroys actors only when ids enter or leave`, () => {
     const editor = new Editor({monitors: [{x: 0, y: 0, width: 500, height: 400}]});
     editor.selectMonitor({x: 10, y: 10});
-    editor.setTool('rectangle');
+    editor.setTool(type);
     editor.pointerDown({x: 50, y: 50});
     editor.pointerUp({x: 100, y: 100});
     const renderer = create();
@@ -177,14 +201,93 @@ test('rectangle pointer motions update only draft geometry and repaint no legacy
     assert.deepEqual(plain(draftActor.size), [53, 33]);
 });
 
-test('new screenshot pixels repaint pixelation without replacing any actor', () => {
+test('pixelate movement and resize reuse the frozen content without reading or preparing any JS pixels', () => {
+    const snapshot = {scale: 4 / 3, content};
+    for (const name of ['pixbuf', 'pixbufReady', 'pixelationPixbuf', 'ensurePixelation', 'ensurePixbuf'])
+        Object.defineProperty(snapshot, name, {get() { assert.fail(`Read ${name}`); }});
+    const renderer = create(snapshot);
+    const annotation = item(1, 'pixelate');
+    renderer.update([annotation], selection);
+    const {actor, image, effect} = renderer._entries.get(1);
+    assert.equal(image.content, content);
+    assert.equal(actor.clip_to_allocation, true);
+    assert.deepEqual(plain(image.size ?? [image.width, image.height]), [500, 400]);
+    for (let i = 1; i <= 10; i++) {
+        renderer.update([{...annotation, x1: annotation.x1 + i, x2: annotation.x2 + i * 2}], selection);
+        assert.equal(renderer._entries.get(1).actor, actor);
+        assert.equal(actor.effect, effect);
+        assert.deepEqual(plain(image.position), [-30 - i, -40]);
+        assert.equal(actor.repaints, 0);
+    }
+    assert.equal(actor.redraws, 11);
+});
+
+test('selection clipping updates pixelate bounds and anchor in place, leaving other actors untouched', () => {
     const renderer = create();
-    const annotations = [item(1, 'rectangle'), item(2, 'pixelate'), item(3, 'circle')];
+    const annotations = [item(1, 'pixelate'), item(2, 'circle')];
     renderer.update(annotations, selection);
-    const actors = annotations.map(a => renderer._entries.get(a.id).actor);
-    const counts = actors.map(a => a.repaints);
-    renderer.invalidatePixels();
+    const {actor, effect, image} = renderer._entries.get(1);
+    const ellipse = renderer._entries.get(2).actor;
+    const before = ellipse.writes;
+    renderer.update(annotations, {x: 50, y: 50, width: 200, height: 100});
+    assert.equal(renderer._entries.get(1).actor, actor);
+    assert.deepEqual(plain(actor.position), [50, 50]);
+    assert.deepEqual(plain(actor.size), [40, 30]);
+    assert.deepEqual(plain(effect.geometry.anchor), [20, 10]);
+    assert.deepEqual(plain(image.position), [-50, -50]);
+    assert.equal(ellipse.writes, before);
+    renderer.update(annotations, {x: 100, y: 100, width: 20, height: 20});
+    assert.equal(actor.visible, false);
     renderer.update(annotations, selection);
-    assert.deepEqual(annotations.map(a => renderer._entries.get(a.id).actor), actors);
-    assert.deepEqual(actors.map(a => a.repaints), [counts[0], counts[1] + 1, counts[2]]);
+    assert.equal(actor.visible, true);
+    assert.equal(renderer._entries.get(1).actor, actor);
+});
+
+test('shader callbacks use actual padded textures and ceiled resource scale before chaining paint', () => {
+    const renderer = create({scale: 4 / 3, content});
+    renderer.update([item(1, 'circle'), item(2, 'pixelate')], selection);
+    const ellipse = renderer._entries.get(1).actor;
+    const pixelate = renderer._entries.get(2).actor;
+    for (const actor of [ellipse, pixelate]) {
+        actor.resourceScale = 2;
+        actor.effect.vfunc_paint_target({}, {});
+        assert.equal(actor.effect.paints, 1);
+        assert.equal(actor.effect.snippet[0], actor === ellipse ? 2048 : 6145);
+        assert.equal(actor.effect.snippet[3], true);
+    }
+    assert.deepEqual(plain(ellipse.effect.uniforms), {textureSize: [132, 92], contentOffset: [4, 4],
+        extent: [126, 86], radii: [60, 40], stroke: [6], antialias: [1.5], ringColor: [1, 0, 0]});
+    assert.deepEqual(plain(pixelate.effect.uniforms), {textureSize: [126, 86], contentOffset: [4, 4],
+        extent: [120, 80], anchor: [0, 0], block: [24]});
+});
+
+test('ellipse antialiasing follows the selected monitor scale', () => {
+    const renderer = create({scale: 2, content,
+        monitors: [{x: 0, y: 0, width: 500, height: 400, scale: 4 / 3}]});
+    renderer.update([item(1, 'circle')], selection);
+    const actor = renderer._entries.get(1).actor;
+    actor.resourceScale = 2;
+    actor.effect.vfunc_paint_target({}, {});
+    assert.deepEqual(plain(actor.effect.uniforms.antialias), [1.5]);
+});
+
+test('degenerate ellipses hide and a Shift circle follows the unchanged editor model', () => {
+    const renderer = create();
+    const annotation = item(1, 'circle');
+    renderer.update([{...annotation, x2: annotation.x1}], selection);
+    const actor = renderer._entries.get(1).actor;
+    assert.equal(actor.visible, false);
+    renderer.update([{...annotation, y2: annotation.y1}], selection);
+    assert.equal(actor.visible, false);
+    renderer.update([annotation], selection);
+    assert.equal(actor.visible, true);
+    const editor = new Editor({monitors: [{x: 0, y: 0, width: 500, height: 400}]});
+    editor.selectMonitor({x: 10, y: 10});
+    editor.setTool('circle');
+    editor.pointerDown({x: 50, y: 50});
+    editor.pointerUp({x: 100, y: 80}, {shift: true});
+    renderer.update(editor.annotations, editor.selection);
+    const circle = renderer._entries.get(editor.annotations[0].id).actor;
+    circle.effect.vfunc_paint_target({}, {});
+    assert.equal(circle.effect.uniforms.radii[0], circle.effect.uniforms.radii[1]);
 });
