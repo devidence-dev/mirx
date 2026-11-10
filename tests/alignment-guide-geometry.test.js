@@ -1,16 +1,29 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {alignmentGuideGeometry, guideScale} from '../src/rendering/alignmentGuideGeometry.js';
+import { alignmentGuideGeometry, guideScale } from '../src/rendering/alignmentGuideGeometry.js';
 
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} !== ${b}`);
 const grid = (value, scale) => near(value * scale, Math.round(value * scale));
 
 test('guides centre on the magnifier source pixel and snap to the physical grid', () => {
-    for (const [scale, texture] of [[1, 1], [2, 2], [4 / 3, 2], [4 / 3, 4 / 3], [2, 1]]) {
-        for (const monitor of [{x: 0, y: 0, width: 800, height: 600}, {x: -1920, y: 37, width: 1280, height: 720}]) {
-            for (const [fx, fy] of [[5.3, 5.9], [100.25, 50.75], [399.6, 299.4]]) {
-                const point = {x: monitor.x + fx, y: monitor.y + fy};
-                const g = alignmentGuideGeometry(point, {...monitor, scale}, texture);
+    for (const [scale, texture] of [
+        [1, 1],
+        [2, 2],
+        [4 / 3, 2],
+        [4 / 3, 4 / 3],
+        [2, 1],
+    ]) {
+        for (const monitor of [
+            { x: 0, y: 0, width: 800, height: 600 },
+            { x: -1920, y: 37, width: 1280, height: 720 },
+        ]) {
+            for (const [fx, fy] of [
+                [5.3, 5.9],
+                [100.25, 50.75],
+                [399.6, 299.4],
+            ]) {
+                const point = { x: monitor.x + fx, y: monitor.y + fy };
+                const g = alignmentGuideGeometry(point, { ...monitor, scale }, texture);
                 const centreX = (Math.floor(point.x * texture) + 0.5) / texture;
                 const centreY = (Math.floor(point.y * texture) + 0.5) / texture;
                 // The core pixel is the (start + core)-th physical pixel; its centre is within half a pixel.
@@ -30,10 +43,17 @@ test('guides centre on the magnifier source pixel and snap to the physical grid'
 });
 
 test('strips and outlines are clipped to the monitor at edges and corners', () => {
-    const monitor = {x: 100, y: 50, width: 200, height: 100, scale: 2};
-    const corners = [[0, 0], [199.9, 0], [0, 99.9], [199.9, 99.9], [200, 100], [-5, -5]];
+    const monitor = { x: 100, y: 50, width: 200, height: 100, scale: 2 };
+    const corners = [
+        [0, 0],
+        [199.9, 0],
+        [0, 99.9],
+        [199.9, 99.9],
+        [200, 100],
+        [-5, -5],
+    ];
     for (const [fx, fy] of corners) {
-        const g = alignmentGuideGeometry({x: monitor.x + fx, y: monitor.y + fy}, monitor, 2);
+        const g = alignmentGuideGeometry({ x: monitor.x + fx, y: monitor.y + fy }, monitor, 2);
         for (const strip of [g.vertical, g.horizontal]) {
             assert.ok(strip.width >= 0 && strip.height >= 0);
             assert.ok(strip.x >= 0 && strip.y >= 0);
@@ -42,15 +62,19 @@ test('strips and outlines are clipped to the monitor at edges and corners', () =
             assert.ok(strip.core >= 0 && strip.core <= 2);
         }
     }
-    const first = alignmentGuideGeometry({x: 100, y: 50}, monitor, 2);
+    const first = alignmentGuideGeometry({ x: 100, y: 50 }, monitor, 2);
     assert.deepEqual([first.vertical.x, first.vertical.width, first.vertical.core], [0, 1, 0]); // outline clipped
-    const last = alignmentGuideGeometry({x: 299.9, y: 149.9}, monitor, 2);
+    const last = alignmentGuideGeometry({ x: 299.9, y: 149.9 }, monitor, 2);
     assert.deepEqual([last.vertical.x + last.vertical.width, last.horizontal.y + last.horizontal.height], [200, 100]);
 });
 
 test('fractional monitor sizes never produce negative or oversize strips', () => {
-    const monitor = {x: 0, y: 0, width: 1280, height: 721, scale: 4 / 3};
-    for (const point of [{x: 1279.99, y: 720.99}, {x: 1280, y: 721}, {x: 0, y: 0}]) {
+    const monitor = { x: 0, y: 0, width: 1280, height: 721, scale: 4 / 3 };
+    for (const point of [
+        { x: 1279.99, y: 720.99 },
+        { x: 1280, y: 721 },
+        { x: 0, y: 0 },
+    ]) {
         const g = alignmentGuideGeometry(point, monitor, 4 / 3);
         for (const v of [g.vertical.width, g.horizontal.height]) assert.ok(v >= 0 && v <= 3 / (4 / 3) + 1e-9);
         assert.ok(g.vertical.x + g.vertical.width <= 1280 + 1e-9);
@@ -59,38 +83,59 @@ test('fractional monitor sizes never produce negative or oversize strips', () =>
 });
 
 test('monitor scale precedence matches the magnifier', () => {
-    assert.equal(guideScale({scale: 2, scaleFactor: 3}, 4), 2);
-    assert.equal(guideScale({scaleFactor: 3}, 4), 3);
+    assert.equal(guideScale({ scale: 2, scaleFactor: 3 }, 4), 2);
+    assert.equal(guideScale({ scaleFactor: 3 }, 4), 3);
     assert.equal(guideScale({}, 4), 4);
-    const monitor = {x: 0, y: 0, width: 100, height: 100};
-    assert.equal(alignmentGuideGeometry({x: 10, y: 10}, {...monitor, scaleFactor: 2}, 1).scale, 2);
-    assert.equal(alignmentGuideGeometry({x: 10, y: 10}, monitor, 1.5).scale, 1.5);
+    const monitor = { x: 0, y: 0, width: 100, height: 100 };
+    assert.equal(alignmentGuideGeometry({ x: 10, y: 10 }, { ...monitor, scaleFactor: 2 }, 1).scale, 2);
+    assert.equal(alignmentGuideGeometry({ x: 10, y: 10 }, monitor, 1.5).scale, 1.5);
 });
 
 test('guides are solid: no dash or period, long axis starts at the monitor origin', () => {
-    const g = alignmentGuideGeometry({x: 20, y: 20}, {x: 0, y: 0, width: 100, height: 100, scale: 1}, 1);
+    const g = alignmentGuideGeometry({ x: 20, y: 20 }, { x: 0, y: 0, width: 100, height: 100, scale: 1 }, 1);
     assert.equal('dash' in g, false);
     assert.equal('period' in g, false);
-    const a = alignmentGuideGeometry({x: 20, y: 20}, {x: 0, y: 0, width: 100, height: 100}, 1);
-    const b = alignmentGuideGeometry({x: 70, y: 20}, {x: 0, y: 0, width: 100, height: 100}, 1);
+    const a = alignmentGuideGeometry({ x: 20, y: 20 }, { x: 0, y: 0, width: 100, height: 100 }, 1);
+    const b = alignmentGuideGeometry({ x: 70, y: 20 }, { x: 0, y: 0, width: 100, height: 100 }, 1);
     assert.deepEqual([a.horizontal.x, a.horizontal.width], [b.horizontal.x, b.horizontal.width]); // long axis starts at origin
 });
 
 test('ring disc, cross and extent follow the reference at scales 1, 2 and 4/3', () => {
-    for (const [scale, radius, outer, half] of [[1, 8, 14, 17], [2, 16, 29, 33], [4 / 3, 11, 19, 22]]) {
-        const {ring} = alignmentGuideGeometry({x: 50, y: 50}, {x: 0, y: 0, width: 100, height: 100, scale}, scale);
+    for (const [scale, radius, outer, half] of [
+        [1, 8, 14, 17],
+        [2, 16, 29, 33],
+        [4 / 3, 11, 19, 22],
+    ]) {
+        const { ring } = alignmentGuideGeometry(
+            { x: 50, y: 50 },
+            { x: 0, y: 0, width: 100, height: 100, scale },
+            scale,
+        );
         assert.deepEqual([ring.radius, ring.inner, ring.outer, ring.half], [radius, 0, outer, half]);
     }
 });
 
 test('ring is an odd physical square centred on the strips core at every scale and corner', () => {
-    for (const [scale, texture] of [[1, 1], [2, 2], [4 / 3, 4 / 3]]) {
-        for (const monitor of [{x: 0, y: 0, width: 800, height: 600}, {x: -1920, y: 37, width: 1280, height: 720}]) {
-            const corners = [[0.2, 0.3], [monitor.width - 0.4, 0.3], [0.2, monitor.height - 0.4], [monitor.width - 0.4, monitor.height - 0.4], [300.5, 200.5]];
+    for (const [scale, texture] of [
+        [1, 1],
+        [2, 2],
+        [4 / 3, 4 / 3],
+    ]) {
+        for (const monitor of [
+            { x: 0, y: 0, width: 800, height: 600 },
+            { x: -1920, y: 37, width: 1280, height: 720 },
+        ]) {
+            const corners = [
+                [0.2, 0.3],
+                [monitor.width - 0.4, 0.3],
+                [0.2, monitor.height - 0.4],
+                [monitor.width - 0.4, monitor.height - 0.4],
+                [300.5, 200.5],
+            ];
             for (const [fx, fy] of corners) {
-                const point = {x: monitor.x + fx, y: monitor.y + fy};
-                const g = alignmentGuideGeometry(point, {...monitor, scale}, texture);
-                const {ring} = g;
+                const point = { x: monitor.x + fx, y: monitor.y + fy };
+                const g = alignmentGuideGeometry(point, { ...monitor, scale }, texture);
+                const { ring } = g;
                 near(ring.x * scale + ring.half + 0.5, g.vertical.x * scale + g.vertical.core + 0.5);
                 near(ring.y * scale + ring.half + 0.5, g.horizontal.y * scale + g.horizontal.core + 0.5);
                 near(ring.size * scale, 2 * ring.half + 1);
@@ -98,7 +143,10 @@ test('ring is an odd physical square centred on the strips core at every scale a
                 assert.equal(Math.round(ring.size * scale) % 2, 1);
                 grid(ring.x, scale);
                 grid(ring.y, scale);
-                assert.ok(ring.radius < ring.outer && ring.outer < ring.half, `${scale} ${ring.radius} ${ring.outer} ${ring.half}`);
+                assert.ok(
+                    ring.radius < ring.outer && ring.outer < ring.half,
+                    `${scale} ${ring.radius} ${ring.outer} ${ring.half}`,
+                );
                 assert.equal(ring.inner, 0); // the cross passes through the centre
             }
         }

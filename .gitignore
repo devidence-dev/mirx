@@ -17,3 +17,6 @@ docs/
 
 # GNOME 50 GIR files decompiled from the test machine, for API checks
 .gir/
+
+# Coverage report (npm run coverage)
+lcov.info

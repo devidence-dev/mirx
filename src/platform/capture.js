@@ -7,20 +7,26 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 export class ScreenCapture {
     async capture() {
         const monitors = Main.layoutManager.monitors.map((monitor, index) => ({
-            x: monitor.x, y: monitor.y,
-            width: monitor.width, height: monitor.height,
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: monitor.height,
             scale: global.display.get_monitor_scale(index),
         }));
-        if (!monitors.length)
-            throw new Error('No monitors available');
+        if (!monitors.length) throw new Error('No monitors available');
         const workspace = global.workspace_manager.get_active_workspace();
-        const windows = global.display.sort_windows_by_stacking(workspace.list_windows())
+        const windows = global.display
+            .sort_windows_by_stacking(workspace.list_windows())
             .reverse()
-            .filter(window => !window.minimized && window.showing_on_its_workspace() &&
-                ![Meta.WindowType.DESKTOP, Meta.WindowType.DOCK].includes(window.get_window_type()))
-            .map(window => {
+            .filter(
+                (window) =>
+                    !window.minimized &&
+                    window.showing_on_its_workspace() &&
+                    ![Meta.WindowType.DESKTOP, Meta.WindowType.DOCK].includes(window.get_window_type()),
+            )
+            .map((window) => {
                 const frame = window.get_frame_rect();
-                return {x: frame.x, y: frame.y, width: frame.width, height: frame.height};
+                return { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
             });
         const shooter = new Shell.Screenshot();
         const capturedAt = GLib.DateTime.new_now_local().format('%Y-%m-%d_%H-%M-%S');
@@ -33,6 +39,6 @@ export class ScreenCapture {
                 }
             });
         });
-        return {content, scale, monitors, windows, capturedAt};
+        return { content, scale, monitors, windows, capturedAt };
     }
 }

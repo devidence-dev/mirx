@@ -12,7 +12,7 @@ export class CommandHistory {
     commit(before, value) {
         const after = this.snapshot(value);
         if (JSON.stringify(before) === JSON.stringify(after)) return false;
-        this.undoStack.push({before: this.snapshot(before), after});
+        this.undoStack.push({ before: this.snapshot(before), after });
         this.redoStack = [];
         return true;
     }

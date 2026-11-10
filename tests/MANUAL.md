@@ -41,29 +41,32 @@ Install the package by following the README. Record `gnome-shell --version`, the
 12. **Files and errors.** Choose a nonexistent folder and save; it is created. Saving two captures quickly does not overwrite either one. Change the folder to `/proc/mirx-not-writable`: the error appears in the view and as a notification, while the selection and annotations are preserved. Correct the preferences and retry. After the error, while the editor is still open, check that the editor is usable (selection, handles and annotations intact, toolbar responsive), that the guides show the state of check 4 (hidden while a selection is complete, shown again by a new selection drag or handle drag, never stuck on screen), and that a successful retry still produces an image without guides. The filename reflects the capture time.
 13. **Preferences and lifecycle.** Change the shortcut to Super+Shift+S: it works and the previous shortcut no longer opens the capture. Change the color to yellow and the stroke width to 5 px, then draw in a new session. Change the folder to `~/Documents/Screenshots`. Disable and re-enable the extension, lock and unlock the session, and disconnect a monitor while the editor is open: no actors, late captures, trapped focus, or lingering shortcuts remain. Test opening it again after each case.
 14. **Numbered markers** (pending, graphical checks). Select the "Numbered marker" tool and check that:
-   - the toolbar shows the ① button; if the glyph does not render, record it, since the fallback is `#`;
-   - each click inside the selection places one circle centred on the click point, numbered 1, 2, 3 in click order, and the tool stays active; a click outside the selection places nothing, and pressing a selection handle still resizes the selection without placing a marker;
-   - deleting marker 2 of markers 1, 2 and 3 with Delete leaves 1 and 2, with the former 3 now showing 2, and the next click takes 3; Ctrl+Z after a placement removes only that marker; Ctrl+Z after the deletion restores 1, 2 and 3, and Ctrl+Shift+Z gives 1 and 2 again;
-   - over busy content, the number is white with a soft shadow on every colour and black on White, and it is legible;
-   - a selected marker shows a blue ring, legible on light and dark content (pending);
-   - one, two and three digit numbers (for example 1, 12 and 123, after placing at least 100 markers) fit inside their circles at width 3 px and at width 30 px;
-   - a click on a marker selects it, a drag moves it and keeps its number, a selected marker shows no resize handles, a width change resizes it around its centre, a colour change recomputes the number contrast, and Ctrl+Z reverts each of these;
-   - at 100%, 200% and approximately 133% scaling, the circle edges are smooth, the number is centred and not blurred, and the exported marker matches the marker on screen;
-   - on two monitors with different scaling, a marker placed on the second monitor stays within the selection and is exported at that monitor's resolution;
-   - the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) images contain the markers with their current numbers, and a marker crossing the selection edge is cropped; compare the images with the screen.
+
+- the toolbar shows the ① button; if the glyph does not render, record it, since the fallback is `#`;
+- each click inside the selection places one circle centred on the click point, numbered 1, 2, 3 in click order, and the tool stays active; a click outside the selection places nothing, and pressing a selection handle still resizes the selection without placing a marker;
+- deleting marker 2 of markers 1, 2 and 3 with Delete leaves 1 and 2, with the former 3 now showing 2, and the next click takes 3; Ctrl+Z after a placement removes only that marker; Ctrl+Z after the deletion restores 1, 2 and 3, and Ctrl+Shift+Z gives 1 and 2 again;
+- over busy content, the number is white with a soft shadow on every colour and black on White, and it is legible;
+- a selected marker shows a blue ring, legible on light and dark content (pending);
+- one, two and three digit numbers (for example 1, 12 and 123, after placing at least 100 markers) fit inside their circles at width 3 px and at width 30 px;
+- a click on a marker selects it, a drag moves it and keeps its number, a selected marker shows no resize handles, a width change resizes it around its centre, a colour change recomputes the number contrast, and Ctrl+Z reverts each of these;
+- at 100%, 200% and approximately 133% scaling, the circle edges are smooth, the number is centred and not blurred, and the exported marker matches the marker on screen;
+- on two monitors with different scaling, a marker placed on the second monitor stays within the selection and is exported at that monitor's resolution;
+- the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) images contain the markers with their current numbers, and a marker crossing the selection edge is cropped; compare the images with the screen.
+
 15. **Gradient annotations** (pending, graphical checks). The gradient toggle (◐, accessible name "Gradient") is at the end of the style row. Check that:
-   - it is off when the overlay opens, shows whether it is on or off, and is off again in a new session after it was left on;
-   - highlighter, text and pixelated areas look exactly as they do with the toggle off, whatever its state;
-   - switching it with a selected arrow, rectangle, ellipse or numbered marker applies or removes that annotation's gradient as one step, Ctrl+Z restores the previous look in a single step, and other annotations are unchanged;
-   - switching it with a selected highlighter, text or pixelated area leaves that annotation unchanged and creates no undo entry: a following Ctrl+Z undoes the previous action, not the toggle, and the toggle still applies to new annotations;
-   - recolouring a selected gradient arrow, rectangle, ellipse or marker gives a sweep of the new colour: the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight;
-   - rectangle and arrow gradients are visible on screen and in the PNG, JPG and clipboard exports (this used to fail: they rendered flat);
-   - flat arrows look and sit exactly as before the container change, compared with the previous build: tail, tip and both head bars, at angles of 0, 45, 90, 180 and 270 degrees and widths of 1, 3 and 30 px;
-   - gradient arrows show no visible seam between the shaft and the head bars, and gradient rectangles show none on their rounded corners;
-   - gradients are smooth and edges sharp at 100%, 200% and approximately 133% scaling;
-   - the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) exports match the screen pixel for pixel, including a gradient arrow cropped by the selection edge; zoom to the pixel level on both to compare;
-   - for each palette colour (Red, Yellow, Green, Blue, Violet, White and Black), the number of a numbered marker contrasts with both its lightest (top-left) and deepest (bottom-right) circle shade, and the number stays one solid colour;
-   - with `perf-log` enabled, record the `mirx-perf motion ms=` values in the GNOME Shell log while moving the pointer over several gradient rectangles, and compare them with the same rectangles drawn flat.
+
+- it is off when the overlay opens, shows whether it is on or off, and is off again in a new session after it was left on;
+- highlighter, text and pixelated areas look exactly as they do with the toggle off, whatever its state;
+- switching it with a selected arrow, rectangle, ellipse or numbered marker applies or removes that annotation's gradient as one step, Ctrl+Z restores the previous look in a single step, and other annotations are unchanged;
+- switching it with a selected highlighter, text or pixelated area leaves that annotation unchanged and creates no undo entry: a following Ctrl+Z undoes the previous action, not the toggle, and the toggle still applies to new annotations;
+- recolouring a selected gradient arrow, rectangle, ellipse or marker gives a sweep of the new colour: the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight;
+- rectangle and arrow gradients are visible on screen and in the PNG, JPG and clipboard exports (this used to fail: they rendered flat);
+- flat arrows look and sit exactly as before the container change, compared with the previous build: tail, tip and both head bars, at angles of 0, 45, 90, 180 and 270 degrees and widths of 1, 3 and 30 px;
+- gradient arrows show no visible seam between the shaft and the head bars, and gradient rectangles show none on their rounded corners;
+- gradients are smooth and edges sharp at 100%, 200% and approximately 133% scaling;
+- the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) exports match the screen pixel for pixel, including a gradient arrow cropped by the selection edge; zoom to the pixel level on both to compare;
+- for each palette colour (Red, Yellow, Green, Blue, Violet, White and Black), the number of a numbered marker contrasts with both its lightest (top-left) and deepest (bottom-right) circle shade, and the number stays one solid colour;
+- with `perf-log` enabled, record the `mirx-perf motion ms=` values in the GNOME Shell log while moving the pointer over several gradient rectangles, and compare them with the same rectangles drawn flat.
 
 Also monitor the GNOME Shell log during testing:
 

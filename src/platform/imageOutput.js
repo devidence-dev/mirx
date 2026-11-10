@@ -6,77 +6,94 @@ import St from 'gi://St';
 // The glycin JPEG encoder behind gdk-pixbuf 2.44+ rejects RGBA, so drop the alpha channel first.
 // The capture is opaque, so compositing over white changes no pixel.
 function opaque(pixbuf) {
-    if (!pixbuf.get_has_alpha())
-        return pixbuf;
-    const width = pixbuf.get_width(), height = pixbuf.get_height();
+    if (!pixbuf.get_has_alpha()) return pixbuf;
+    const width = pixbuf.get_width(),
+        height = pixbuf.get_height();
     const rgb = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, false, 8, width, height);
     rgb.fill(0xffffffff);
     pixbuf.composite(rgb, 0, 0, width, height, 0, 0, 1, 1, GdkPixbuf.InterpType.NEAREST, 255);
     return rgb;
 }
 
+function resolveFolder(folder) {
+    if (folder === '~') return GLib.get_home_dir();
+    if (folder.startsWith('~/')) return GLib.build_filenamev([GLib.get_home_dir(), folder.slice(2)]);
+    return folder;
+}
+
+function ensureDirectory(directory) {
+    if (!GLib.path_is_absolute(directory)) throw new Error('The folder must be an absolute path or start with ~/');
+    const dir = Gio.File.new_for_path(directory);
+    try {
+        dir.make_directory_with_parents(null);
+    } catch (error) {
+        if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS)) throw error;
+    }
+    return dir;
+}
+
+// Creates the first free Screenshot_<timestamp>[-n].<extension>; an existing file bumps the suffix.
+function createUniqueFile(dir, timestamp, extension) {
+    for (let n = 0; ; n++) {
+        const suffix = n ? `-${n}` : '';
+        const file = dir.get_child(`Screenshot_${timestamp}${suffix}.${extension}`);
+        try {
+            return { file, stream: file.create(Gio.FileCreateFlags.NONE, null) };
+        } catch (error) {
+            if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS)) throw error;
+        }
+    }
+}
+
+function writeAndClose(file, stream, writeContent) {
+    try {
+        writeContent();
+        stream.close(null);
+    } catch (error) {
+        try {
+            stream.close(null);
+        } catch (_) {
+            /* preserve original error */
+        }
+        try {
+            file.delete(null);
+        } catch (_) {
+            /* preserve original error */
+        }
+        throw error;
+    }
+}
+
 export class ImageOutput {
-    constructor({notify = () => {}} = {}) {
+    constructor({ notify = () => {} } = {}) {
         this._notify = notify;
     }
 
     async copy(snapshot, selection, annotations, monitor, operation = {}) {
-        const {isCancelled = () => false} = operation;
-        const {pngBytes} = await this.render(snapshot, selection, annotations, monitor, operation);
-        if (isCancelled())
-            return;
-        St.Clipboard.get_default().set_content(St.ClipboardType.CLIPBOARD,
-            'image/png', pngBytes);
+        const { isCancelled = () => false } = operation;
+        const { pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
+        if (isCancelled()) return;
+        St.Clipboard.get_default().set_content(St.ClipboardType.CLIPBOARD, 'image/png', pngBytes);
         operation.onComplete?.();
         this._notify('Capture copied', 'The image was copied to the clipboard.');
     }
 
-    async save(snapshot, selection, annotations, monitor, {folder, format = 'PNG'},
-        operation = {}) {
-        const {isCancelled = () => false} = operation;
-        const {pixbuf, pngBytes} = await this.render(snapshot, selection, annotations, monitor, operation);
-        if (isCancelled())
-            return null;
-        const directory = folder === '~' ? GLib.get_home_dir() :
-            folder.startsWith('~/') ? GLib.build_filenamev([GLib.get_home_dir(), folder.slice(2)]) : folder;
-        if (!GLib.path_is_absolute(directory))
-            throw new Error('The folder must be an absolute path or start with ~/');
-        const dir = Gio.File.new_for_path(directory);
-        try {
-            dir.make_directory_with_parents(null);
-        } catch (error) {
-            if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS))
-                throw error;
-        }
+    async save(snapshot, selection, annotations, monitor, { folder, format = 'PNG' }, operation = {}) {
+        const { isCancelled = () => false } = operation;
+        const { pixbuf, pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
+        if (isCancelled()) return null;
+        const dir = ensureDirectory(resolveFolder(folder));
         const jpeg = ['jpg', 'jpeg'].includes(format.toLowerCase());
         const extension = jpeg ? 'jpg' : 'png';
         const timestamp = snapshot.capturedAt ?? GLib.DateTime.new_now_local().format('%Y-%m-%d_%H-%M-%S');
-        for (let n = 0; ; n++) {
-            const suffix = n ? `-${n}` : '';
-            const file = dir.get_child(`Screenshot_${timestamp}${suffix}.${extension}`);
-            let stream;
-            try {
-                stream = file.create(Gio.FileCreateFlags.NONE, null);
-            } catch (error) {
-                if (error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS))
-                    continue;
-                throw error;
-            }
-            try {
-                if (jpeg)
-                    opaque(pixbuf).save_to_streamv(stream, 'jpeg', [], [], null);
-                else
-                    stream.write_all(pngBytes.get_data(), null);
-                stream.close(null);
-            } catch (error) {
-                try { stream.close(null); } catch (_) { /* preserve original error */ }
-                try { file.delete(null); } catch (_) { /* preserve original error */ }
-                throw error;
-            }
-            operation.onComplete?.();
-            const path = file.get_path();
-            this._notify('Capture saved', path);
-            return path;
-        }
+        const { file, stream } = createUniqueFile(dir, timestamp, extension);
+        writeAndClose(file, stream, () => {
+            if (jpeg) opaque(pixbuf).save_to_streamv(stream, 'jpeg', [], [], null);
+            else stream.write_all(pngBytes.get_data(), null);
+        });
+        operation.onComplete?.();
+        const path = file.get_path();
+        this._notify('Capture saved', path);
+        return path;
     }
 }
