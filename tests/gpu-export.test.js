@@ -2,165 +2,163 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-
 import {alignedPaintRect, physicalRect} from '../src/core/geometry.js';
 
 async function load() {
-    const source = (await readFile(new URL('../src/platform/gpuExport.js', import.meta.url), 'utf8'))
-        .replace(/^import .*;\n/gm, '').replace('export class GpuImageOutput', 'class GpuImageOutput')
-        .replace('export function ensurePixelationPixels', 'function ensurePixelationPixels') +
-        '\nthis.GpuImageOutput = GpuImageOutput; this.ensurePixelationPixels = ensurePixelationPixels;';
+    const outputSource = (await readFile(new URL('../src/platform/imageOutput.js', import.meta.url), 'utf8'))
+        .replace(/^import .*;\n/gm, '').replace('export class ImageOutput', 'class ImageOutput');
+    const gpuSource = (await readFile(new URL('../src/platform/gpuExport.js', import.meta.url), 'utf8'))
+        .replace(/^import .*;\n/gm, '').replace('export class GpuImageOutput', 'class GpuImageOutput');
     const events = [];
-    const files = new Map();
-    const pixbuf = {get_width: () => 800, get_height: () => 533};
-    class ImageOutput {
-        constructor({notify} = {}) { this._notify = notify; }
-        async render() { events.push('cairo'); return pixbuf; }
-        async copy(snapshot, selection, annotations, monitor, operation) {
-            const result = await this.render(snapshot, selection, annotations, monitor);
-            if (!operation.isCancelled?.()) events.push(result);
-        }
-    }
-    const context = {ImageOutput, alignedPaintRect, physicalRect, annotationBounds: () => ({}), console: {log: () => {}}, TextEncoder,
+    const bytes = {get_data: () => new Uint8Array([1, 2, 3])};
+    // The compositor returns RGBA; JPEG must be encoded from an opaque copy.
+    const opaque = {save_to_streamv: (...args) => events.push(['encode', 'opaque', ...args])};
+    const pixbuf = {get_width: () => 800, get_height: () => 533, get_has_alpha: () => true,
+        composite: (dest, ...args) => events.push(['composite', dest === opaque, ...args]),
+        save_to_streamv: (...args) => events.push(['encode', 'rgba', ...args])};
+    const stream = {closed: false, close() { this.closed = true; events.push('close'); },
+        is_closed() { return this.closed; }, steal_as_bytes() { events.push('steal'); return bytes; }};
+    const fileStream = {write_all: data => events.push(['write', Array.from(data)]), close: () => events.push('file-close')};
+    const file = {create: flags => { events.push(['create', flags]); return fileStream; }, get_path: () => '/screenshots/image', delete: () => events.push('delete')};
+    const dir = {make_directory_with_parents: () => events.push('mkdir'), get_child: name => { events.push(name); return file; }};
+    const context = {alignedPaintRect, physicalRect,
         global: {stage: {paint_to_content: (...args) => { events.push(args); return {get_texture: () => 'texture'}; }}},
         Clutter: {PaintFlag: {NO_CURSORS: 7}}, Mtk: {Rectangle: {new: (...args) => args}},
-        GLib: {get_monotonic_time: () => 0},
-        Gio: {MemoryOutputStream: {new_resizable: () => ({close: () => events.push('close')})}},
+        GLib: {path_is_absolute: path => path.startsWith('/')},
+        GdkPixbuf: {Colorspace: {RGB: 0}, InterpType: {NEAREST: 0},
+            Pixbuf: {new: (...args) => { events.push(['new', ...args]); return {...opaque, fill: () => {}}; }}},
+        Gio: {MemoryOutputStream: {new_resizable: () => stream}, File: {new_for_path: () => dir},
+            FileCreateFlags: {NONE: 0, PRIVATE: 1}, IOErrorEnum: {EXISTS: 2}},
+        St: {ClipboardType: {CLIPBOARD: 1}, Clipboard: {get_default: () => ({set_content: (...args) => events.push(['clipboard', ...args])})}},
         Shell: {Screenshot: {composite_to_stream: (...args) => { events.push(args.slice(0, -1)); args.at(-1)(null, 'result'); },
             composite_to_stream_finish: () => pixbuf}}};
-    vm.runInNewContext(source, context);
-    return {Output: context.GpuImageOutput, context, events, pixbuf, files};
+    vm.runInNewContext(`${outputSource}\n${gpuSource}\nthis.Output = GpuImageOutput;`, context);
+    return {Output: context.Output, context, events, bytes, pixbuf, fileStream};
 }
 
 const selection = {x: 20, y: 30, width: 600, height: 400};
-const snapshot = {scale: 1};
+const snapshot = {scale: 1, capturedAt: 'date'};
 const monitor = {scale: 4 / 3};
+const operation = {withExportContent: callback => callback()};
 
-test('GPU capture hides decorations only for the synchronous stage paint and uses a cropped texture', async () => {
-    const {Output, events, pixbuf} = await load();
-    const output = new Output({engine: () => 'gpu'});
-    await output.copy(snapshot, selection, [], monitor, {withExportContent(callback) {
-        events.push('hide'); const content = callback(); events.push('restore'); return content;
+test('GPU copy paints on the physical grid and reuses the compositor PNG', async () => {
+    const {Output, events, bytes} = await load();
+    await new Output({notify: () => events.push('notify')}).copy(snapshot, selection, [], monitor, {onComplete: () => events.push('complete'), withExportContent(callback) {
+        events.push('hide'); try { return callback(); } finally { events.push('restore'); }
     }});
     assert.equal(events[0], 'hide');
-    // Physical rect {27, 40, 800, 533}; q = 3 gives the aligned logical rect {18, 30, 603, 402}
-    // (x 27/(4/3)/3 = 6.75 -> 6, y 40/(4/3)/3 = 10, right 827/(4/3)/3 = 206.75 -> 207, bottom 573/(4/3)/3 = 143.25 -> 144),
-    // offsets 27 - 24 = 3 and 40 - 40 = 0.
     assert.deepEqual(Array.from(events[1][0]), [18, 30, 603, 402]);
     assert.deepEqual(Array.from(events[1].slice(1)), [4 / 3, null, 7]);
     assert.equal(events[2], 'restore');
     assert.deepEqual(events[3].slice(0, 5), ['texture', 3, 0, 800, 533]);
-    assert.equal(events[4], 'close');
-    assert.equal(events[5], pixbuf);
+    assert.deepEqual(events.slice(4, 6), ['close', 'steal']);
+    assert.equal(events[6][0], 'clipboard');
+    assert.equal(events[6][2], 'image/png');
+    assert.equal(events[6][3], bytes);
+    assert.deepEqual(events.slice(7), ['complete', 'notify']);
 });
 
-test('GPU capture without an aligned paint rectangle paints the selection and keeps the whole texture', async () => {
-    const {Output, context, events} = await load();
-    context.Shell.Screenshot.composite_to_stream_finish = () => ({get_width: () => 822, get_height: () => 548});
-    await new Output({engine: () => 'gpu'}).copy(snapshot, selection, [], {scale: 1.37},
-        {withExportContent: callback => callback()});
-    assert.deepEqual(Array.from(events[0][0]), [20, 30, 600, 400]);
-    assert.deepEqual(events[1].slice(0, 5), ['texture', 0, 0, -1, -1]);
+test('PNG save writes the compositor bytes and JPG encodes the pixbuf', async () => {
+    for (const format of ['PNG', 'JPG']) {
+        const {Output, events} = await load();
+        await new Output({notify: () => events.push('notify')}).save(snapshot, selection, [], monitor, {folder: '/screenshots', format}, {...operation, onComplete: () => events.push('complete')});
+        assert.deepEqual(events.slice(-3), ['file-close', 'complete', 'notify']);
+        assert.ok(events.some(e => Array.isArray(e) && e[0] === 'create' && e[1] === 0));
+        assert.ok(events.includes(`Screenshot_date.${format === 'PNG' ? 'png' : 'jpg'}`));
+        assert.equal(events.some(e => Array.isArray(e) && e[0] === 'write'), format === 'PNG');
+        assert.equal(events.some(e => Array.isArray(e) && e[0] === 'encode'), format === 'JPG');
+        if (format === 'JPG') {
+            assert.deepEqual(events.find(e => e[0] === 'new'), ['new', 0, false, 8, 800, 533]);
+            assert.ok(events.some(e => e[0] === 'encode' && e[1] === 'opaque' && e[2] !== undefined));
+            assert.equal(events.some(e => e[0] === 'encode' && e[1] === 'rgba'), false);
+        }
+    }
 });
 
-test('default engine keeps Cairo and unavailable GPU fails explicitly', async () => {
-    const {Output, context, events} = await load();
-    await new Output().copy(snapshot, selection, [], monitor);
-    assert.equal(events[0], 'cairo');
-    delete context.global.stage.paint_to_content;
-    await assert.rejects(new Output({engine: () => 'gpu'}).copy(snapshot, selection, [], monitor,
-        {withExportContent: callback => callback()}), /paint_to_content/);
+test('save errors propagate and remove the partial file', async () => {
+    const {Output, events, fileStream} = await load();
+    fileStream.write_all = () => { throw new Error('disk full'); };
+    await assert.rejects(new Output().save(snapshot, selection, [], monitor, {folder: '/screenshots'},
+        {...operation, onComplete: () => events.push('complete')}), /disk full/);
+    assert.equal(events.includes('complete'), false);
+    assert.ok(events.includes('delete'));
 });
 
-test('export keeps the engine selected before asynchronous preparation', async () => {
-    const {Output, events} = await load();
-    await new Output({engine: () => 'cairo'}).copy(snapshot, selection, [], monitor,
-        {engine: 'gpu', withExportContent: callback => callback()});
-    assert.equal(events.includes('cairo'), false);
-    assert.ok(Array.isArray(events[0]));
-});
-
-
-test('compare writes actual RGB differences, classified spans, and appendable JSONL', async () => {
-    const {Output, context, files} = await load();
-    const makePixbuf = pixels => ({get_width: () => 3, get_height: () => 1,
-        get_rowstride: () => 9, get_n_channels: () => 3,
-        read_pixel_bytes: () => ({get_data: () => pixels}),
-        save_to_streamv: stream => stream.write_all(new Uint8Array([42]))});
-    const cairo = makePixbuf(new Uint8Array([0, 0, 0, 10, 10, 10, 20, 20, 20]));
-    const gpu = makePixbuf(new Uint8Array([1, 0, 0, 13, 8, 10, 20, 20, 20]));
-    context.ImageOutput.prototype.render = async () => cairo;
-    context.Shell.Screenshot.composite_to_stream_finish = () => gpu;
-    context.annotationBounds = () => ({x: -20, y: -20, width: 4, height: 40});
-    let diffBytes;
-    context.GdkPixbuf = {Colorspace: {RGB: 0}, Pixbuf: {new_from_bytes(bytes, _color, _alpha, _bits, width, height, stride) {
-        diffBytes = Array.from(bytes); assert.equal(width, 3); assert.equal(height, 1); assert.equal(stride, 9);
-        return makePixbuf(bytes);
-    }}};
-    context.GLib.Bytes = {new: bytes => bytes};
-    context.GLib.get_user_cache_dir = () => '/cache';
-    context.GLib.build_filenamev = parts => parts.join('/');
-    context.GLib.mkdir_with_parents = () => 0;
-    context.Gio.FileCreateFlags = {PRIVATE: 1, REPLACE_DESTINATION: 2};
-    context.Gio.FileQueryInfoFlags = {NONE: 0};
-    const directory = {set_attribute_uint32() {}, get_child(name) {
-        const stream = append => ({write_all(bytes) {
-            const old = append ? files.get(name) ?? '' : '';
-            files.set(name, old + new TextDecoder().decode(bytes));
-        }, close() {}});
-        return {replace: () => stream(false), append_to: () => stream(true), set_attribute_uint32() {}};
-    }};
-    context.Gio.File = {new_for_path: () => directory};
-    const output = new Output({engine: () => 'compare'});
-    const operation = {withExportContent: callback => callback()};
-    const small = {x: 0, y: 0, width: 3, height: 1};
-    await output.copy({scale: 1}, small, [{}], {scale: 1}, operation);
-    await output.copy({scale: 1}, small, [{}], {scale: 1}, operation);
-    assert.deepEqual(diffBytes, [1, 0, 0, 3, 2, 0, 0, 0, 0]);
-    const lines = files.get('metrics.jsonl').trim().split('\n').map(JSON.parse);
-    assert.equal(lines.length, 2);
-    assert.equal(lines[0].inside.count, 1);
-    assert.equal(lines[0].inside.max, 1);
-    assert.equal(lines[0].outside.overTolerance, 1);
-    assert.equal(lines[0].outside.max, 3);
-    const spans = JSON.parse(files.get('differing-pixels.json'));
-    assert.deepEqual(spans, [{y: 0, xStart: 0, xEnd: 0, region: 'inside', max: 1},
-        {y: 0, xStart: 1, xEnd: 1, region: 'outside', max: 3}]);
-});
-
-test('stage failure restores visibility and propagates error', async () => {
+test('cancellation avoids clipboard writes and stage failure restores visibility', async () => {
+    const first = await load();
+    await new first.Output().copy(snapshot, selection, [], monitor, {...operation, isCancelled: () => true});
+    assert.equal(first.events.some(e => Array.isArray(e) && e[0] === 'clipboard'), false);
     const {Output, context} = await load();
     let visible = true;
     context.global.stage.paint_to_content = () => { throw new Error('paint failed'); };
-    await assert.rejects(new Output({engine: () => 'gpu'}).copy(snapshot, selection, [], monitor,
+    await assert.rejects(new Output().copy(snapshot, selection, [], monitor,
         {withExportContent(callback) { visible = false; try { return callback(); } finally { visible = true; } }}), /paint failed/);
     assert.equal(visible, true);
 });
 
+test('save accepts an existing directory, expands home paths and resolves collisions', async () => {
+    for (const folder of ['~', '~/Pictures']) {
+        const {Output, context, events} = await load();
+        const exists = {matches: (_domain, code) => code === context.Gio.IOErrorEnum.EXISTS};
+        let creates = 0;
+        const file = {create: () => {
+            if (creates++ === 0)
+                throw exists;
+            return {write_all() {}, close() {}};
+        }, get_path: () => '/saved'};
+        context.GLib.get_home_dir = () => '/home/user';
+        context.GLib.build_filenamev = parts => parts.join('/');
+        context.Gio.File.new_for_path = path => {
+            events.push(path);
+            return {make_directory_with_parents() { throw exists; }, get_child(name) { events.push(name); return file; }};
+        };
+        await new Output().save(snapshot, selection, [], monitor, {folder}, operation);
+        assert.ok(events.includes(folder === '~' ? '/home/user' : '/home/user/Pictures'));
+        assert.ok(events.includes('Screenshot_date.png'));
+        assert.ok(events.includes('Screenshot_date-1.png'));
+    }
+});
 
-test('pixelation reads only needed tiles, shares requests, and replaces cached pixbuf on growth', async () => {
-    const {context, events} = await load();
-    const copies = [];
-    const makeDestination = () => ({fill(value) { assert.equal(value, 0); },
-        copy() { const next = makeDestination(); copies.push(next); return next; }});
-    context.GdkPixbuf = {Colorspace: {RGB: 0}, Pixbuf: {new: () => makeDestination()}};
-    context.annotationBounds = a => ({x: a.x1, y: a.y1, width: a.x2 - a.x1, height: a.y2 - a.y1});
-    context.Shell.Screenshot.composite_to_stream_finish = () => ({copy_area: (...args) => copies.push(args)});
-    const original = {};
-    const snapshot = {pixbuf: original, scale: 1, content: {get_texture: () => ({get_width: () => 1200, get_height: () => 800})}};
-    const first = [{type: 'pixelate', x1: 10, y1: 20, x2: 30, y2: 40}];
-    const [a, b] = await Promise.all([context.ensurePixelationPixels(snapshot, first), context.ensurePixelationPixels(snapshot, first)]);
-    assert.equal(a, b);
-    assert.equal(snapshot.pixbuf, original);
-    assert.equal(snapshot.pixelationPixbuf, a);
-    const requests = () => events.filter(e => Array.isArray(e) && e.length === 11);
-    assert.equal(requests().length, 1);
-    assert.deepEqual(Array.from(requests()[0].slice(1, 5)), [0, 0, 512, 512]);
-    const second = [...first, {type: 'pixelate', x1: 600, y1: 40, x2: 700, y2: 60}];
-    const c = await context.ensurePixelationPixels(snapshot, second);
-    assert.notEqual(c, a);
-    assert.equal(snapshot.pixelationPixbuf, c);
-    assert.equal(requests().length, 2);
-    assert.deepEqual(Array.from(requests()[1].slice(1, 5)), [512, 0, 512, 512]);
-    assert.equal(snapshot.pixbuf, original);
+test('directory creation failure propagates without completion or notification', async () => {
+    const {Output, context, events} = await load();
+    const denied = new Error('permission denied');
+    denied.matches = () => false;
+    context.Gio.File.new_for_path = () => ({make_directory_with_parents() { throw denied; }});
+    await assert.rejects(new Output({notify: () => events.push('notify')}).save(snapshot, selection, [], monitor,
+        {folder: '/unwritable'}, {...operation, onComplete: () => events.push('complete')}), /permission denied/);
+    assert.equal(events.includes('complete'), false);
+    assert.equal(events.includes('notify'), false);
+});
+
+test('compositor failure closes its stream and invalid dimensions fail export', async () => {
+    const failed = await load();
+    failed.context.Shell.Screenshot.composite_to_stream_finish = () => { throw new Error('composite failed'); };
+    await assert.rejects(new failed.Output().render(snapshot, selection, [], monitor, operation), /composite failed/);
+    assert.ok(failed.events.includes('close'));
+    assert.equal(failed.events.includes('steal'), false);
+    const mismatch = await load();
+    mismatch.pixbuf.get_width = () => 799;
+    await assert.rejects(new mismatch.Output().render(snapshot, selection, [], monitor, operation), /dimensions 799x533 differ from expected 800x533/);
+});
+
+test('empty selections and missing stage paint API fail before rendering', async () => {
+    const {Output, context, events} = await load();
+    const output = new Output();
+    await assert.rejects(output.render(snapshot, {...selection, width: 0}, [], monitor, operation), /selection is empty/);
+    delete context.global.stage.paint_to_content;
+    await assert.rejects(output.render(snapshot, selection, [], monitor, operation), /requires Clutter.Stage.paint_to_content/);
+    assert.deepEqual(events, []);
+});
+
+test('unaligned fallback validates the full texture dimensions', async () => {
+    const {Output, context, events, pixbuf} = await load();
+    const texture = {get_width: () => 823, get_height: () => 548};
+    context.global.stage.paint_to_content = (...args) => { events.push(args); return {get_texture: () => texture}; };
+    pixbuf.get_width = () => 823;
+    pixbuf.get_height = () => 548;
+    await new Output().render(snapshot, {x: 1, y: 1, width: 601, height: 400}, [], {scale: 1.37}, operation);
+    assert.deepEqual(Array.from(events[0][0]), [1, 1, 601, 400]);
+    assert.deepEqual(events[1].slice(0, 5), [texture, 0, 0, -1, -1]);
+    pixbuf.get_width = () => 822;
+    await assert.rejects(new Output().render(snapshot, {x: 1, y: 1, width: 601, height: 400}, [], {scale: 1.37}, operation), /expected 823x548/);
 });

@@ -191,7 +191,6 @@ test('output cancellation follows the session generation', async () => {
     const output = deferred();
     f.setOutput(() => output.promise);
     const exporting = view.onExport('copy');
-    await Promise.resolve(); // export awaits snapshot.pixbufReady before calling output
     const operation = f.calls[0].args[4];
     assert.equal(operation.isCancelled(), false);
     view.onCancel();
@@ -224,48 +223,8 @@ test('modal open failure destroys the view and allows recovery', async () => {
     assert.equal(views[1].destroyed, 0);
 });
 
-test('export waits for the background pixbuf before copying', async () => {
+test('export uses the view content without preparing pixel data', async () => {
     const f = fixture();
-    const opening = f.session.open();
-    const pixbuf = deferred();
-    f.captures[0].resolve({...snapshot, pixbufReady: pixbuf.promise});
-    await opening;
-    const view = f.views[0];
-    select(view);
-    const exporting = view.onExport('copy');
-    assert.deepEqual(f.calls, []);
-    pixbuf.resolve();
-    await exporting;
-    assert.equal(f.calls.length, 1);
-    assert.equal(f.calls[0].action, 'copy');
-});
-
-
-test('GPU export does not request a pixbuf, while Cairo and compare do', async () => {
-    for (const [engine, pixelate, expected] of [['gpu', false, false], ['gpu', true, false],
-        ['compare', false, true], ['compare', true, true], ['cairo', false, true], ['cairo', true, true]]) {
-        const f = fixture();
-        f.setConfig({color: '#f00', width: 3, exportEngine: engine});
-        const opening = f.session.open();
-        let requests = 0;
-        const captured = {...snapshot, get pixbufReady() { requests++; return Promise.resolve(); }};
-        f.captures[0].resolve(captured);
-        await opening;
-        const view = f.views[0];
-        select(view);
-        if (pixelate)
-            view.editor.annotations.push({type: 'pixelate'});
-        await view.onExport('copy');
-        assert.equal(requests > 0, expected, `${engine}, pixelate=${pixelate}`);
-        const operation = f.calls[0].args[4];
-        assert.equal(operation.withExportContent(() => 'painted'), 'painted');
-    }
-});
-
-
-test('GPU pixelation exports without preparing pixel data', async () => {
-    const f = fixture();
-    f.setConfig({color: '#f00', width: 3, exportEngine: 'gpu'});
     const opening = f.session.open();
     const captured = {...snapshot,
         get pixbufReady() { throw new Error('full pixbuf requested'); },
@@ -278,5 +237,17 @@ test('GPU pixelation exports without preparing pixel data', async () => {
     view.editor.annotations.push({type: 'pixelate'});
     await view.onExport('copy');
     assert.equal(f.calls.length, 1);
-    assert.equal(f.calls[0].args[4].engine, 'gpu');
+    assert.equal(f.calls[0].args[4].withExportContent(() => 'painted'), 'painted');
+});
+
+test('export forwards the completion callback to the output port', async () => {
+    const f = fixture();
+    const view = await f.open();
+    select(view);
+    let completed = false;
+    const onComplete = () => { completed = true; };
+    await view.onExport('copy', onComplete);
+    assert.equal(f.calls[0].args[4].onComplete, onComplete);
+    f.calls[0].args[4].onComplete();
+    assert.equal(completed, true);
 });

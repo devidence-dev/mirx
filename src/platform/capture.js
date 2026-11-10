@@ -1,4 +1,3 @@
-import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -6,10 +5,6 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 /** Shell-only adapter: no portal, subprocess, cursor, or remote service. */
 export class ScreenCapture {
-    constructor({preparePixelation} = {}) {
-        this._preparePixelation = preparePixelation;
-    }
-
     async capture() {
         const monitors = Main.layoutManager.monitors.map((monitor, index) => ({
             x: monitor.x, y: monitor.y,
@@ -38,32 +33,6 @@ export class ScreenCapture {
                 }
             });
         });
-        const snapshot = {content, pixbuf: null, scale, monitors, windows, capturedAt};
-        let pixbufReady;
-        snapshot.ensurePixbuf = () => {
-            if (pixbufReady)
-                return pixbufReady;
-            const stream = Gio.MemoryOutputStream.new_resizable();
-            pixbufReady = new Promise((resolve, reject) => {
-                Shell.Screenshot.composite_to_stream(content.get_texture(),
-                    0, 0, -1, -1, 1, null, 0, 0, 1, stream,
-                    (_source, result) => {
-                        try {
-                            resolve(Shell.Screenshot.composite_to_stream_finish(result));
-                        } catch (error) {
-                            reject(error);
-                        }
-                    });
-            }).then(pixbuf => {
-                snapshot.pixbuf = pixbuf;
-                return pixbuf;
-            }).finally(() => stream.close(null));
-            pixbufReady.catch(() => {});
-            return pixbufReady;
-        };
-        snapshot.ensurePixelation = annotations => this._preparePixelation
-            ? this._preparePixelation(snapshot, annotations) : snapshot.ensurePixbuf();
-        Object.defineProperty(snapshot, 'pixbufReady', {get: () => snapshot.ensurePixbuf()});
-        return snapshot;
+        return {content, scale, monitors, windows, capturedAt};
     }
 }

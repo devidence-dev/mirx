@@ -1,11 +1,11 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {contains, handles, physicalRect} from '../core/geometry.js';
+import {textFont} from '../rendering/annotations.js';
 import {AnnotationActors} from './annotationActors.js';
 import {decorationRect, DecorationActors} from './decorations.js';
 import {Magnifier} from './magnifier.js';
@@ -168,6 +168,7 @@ export class Overlay {
     _key(event) {
         if (this._busy)
             return Clutter.EVENT_STOP;
+        const start = this.perfLog?.() ? GLib.get_monotonic_time() : null;
         const symbol = event.get_key_symbol();
         const ctrl = Boolean(event.get_state() & Clutter.ModifierType.CONTROL_MASK);
         const shift = this._options(event).shift;
@@ -189,9 +190,9 @@ export class Overlay {
                 return Clutter.EVENT_STOP;
             }
         } else if (ctrl && [Clutter.KEY_c, Clutter.KEY_C].includes(symbol)) {
-            this._export('copy');
+            this._export('copy', start);
         } else if (ctrl && [Clutter.KEY_s, Clutter.KEY_S].includes(symbol)) {
-            this._export('save');
+            this._export('save', start);
         } else if (ctrl && [Clutter.KEY_a, Clutter.KEY_A].includes(symbol)) {
             this.editor.selectMonitor(this._point);
         } else if (ctrl && [Clutter.KEY_z, Clutter.KEY_Z].includes(symbol)) {
@@ -199,7 +200,7 @@ export class Overlay {
         } else if (symbol === Clutter.KEY_Delete) {
             this.editor.deleteSelected();
         } else if (enter) {
-            this._export(this.enterAction());
+            this._export(this.enterAction(), start);
         } else {
             const arrows = new Map([
                 [Clutter.KEY_Left, [-1, 0]], [Clutter.KEY_Right, [1, 0]],
@@ -224,9 +225,7 @@ export class Overlay {
         const text = new Clutter.Text({text: annotation?.text ?? '',
             editable: true, selectable: true, reactive: true,
             single_line_mode: false, activatable: false});
-        const font = Pango.FontDescription.from_string('Sans');
-        font.set_absolute_size(Math.max(14, style.width * 5) * Pango.SCALE);
-        text.set_font_description(font);
+        text.set_font_description(textFont(style.width));
         const container = new St.Bin({style_class: 'mirx-text-editor', child: text, reactive: true});
         const selection = this.editor.selection;
         this._textEdit = {actor: container, text, point: position, id};
@@ -260,12 +259,16 @@ export class Overlay {
         this.actor.grab_key_focus();
     }
 
-    _export(action) {
+    _export(action, start) {
         if (this._busy)
             return;
+        if (start === undefined)
+            start = this.perfLog?.() ? GLib.get_monotonic_time() : null;
         this._finishText(true);
         this._refresh();
-        this.onExport(action);
+        this.onExport(action, start === null ? undefined : () => {
+            console.log(`mirx-perf export ms=${(GLib.get_monotonic_time() - start) / 1000}`);
+        });
     }
 
     _updateDecorations() {
