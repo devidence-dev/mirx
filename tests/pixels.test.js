@@ -47,4 +47,10 @@ test('crops fractional-scale selections outward and clamps to the pixbuf', () =>
     assert.deepEqual(cropRect(stage, 1.5, {x: 90, y: 40, width: 20, height: 20}, 2),
         {x: 133, y: 58, width: 17, height: 17});
     assert.ok(cropRect(stage, 1.5, {x: 200, y: 0, width: 10, height: 10}).width <= 0);
+    // Far edge 33 * 1.25 = 41.25: ceil gives 42, round would give 41.
+    assert.deepEqual(cropRect(stage, 1.25, {x: 0, y: 0, width: 33, height: 33}),
+        {x: 0, y: 0, width: 42, height: 42});
+    // Origin 3 * 1.25 = 3.75: floor gives 3, round would give 4. Far edge 23 * 1.25 = 28.75: ceil gives 29.
+    assert.deepEqual(cropRect(stage, 1.25, {x: 3, y: 3, width: 20, height: 20}),
+        {x: 3, y: 3, width: 26, height: 26});
 });

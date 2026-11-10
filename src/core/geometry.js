@@ -6,6 +6,12 @@ export function contains(rect, point) {
         point.x <= rect.x + rect.width && point.y <= rect.y + rect.height;
 }
 
+// Unlike contains, excludes the rectangle edges.
+export function inside(rect, point) {
+    return point.x > rect.x && point.y > rect.y &&
+        point.x < rect.x + rect.width && point.y < rect.y + rect.height;
+}
+
 export function intersect(a, b) {
     const x = Math.max(a.x, b.x);
     const y = Math.max(a.y, b.y);

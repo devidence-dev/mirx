@@ -1,4 +1,4 @@
-import {contains, intersect, fromPoints, clampPoint, moveRect, resizeRect, handleAt} from './geometry.js';
+import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handleAt} from './geometry.js';
 import {CommandHistory} from './history.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -152,8 +152,7 @@ export class Editor {
         }
         if (this.tool) {
             const handle = handleAt(this.selection, point);
-            if (handle && !(point.x > this.selection.x && point.x < this.selection.x + this.selection.width &&
-                point.y > this.selection.y && point.y < this.selection.y + this.selection.height)) {
+            if (handle && !inside(this.selection, point)) {
                 this._gesture = {kind: 'selection-resize', handle,
                     start: point, original: {...this.selection}};
                 return null;
