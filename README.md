@@ -122,7 +122,9 @@ npm run pack     # build dist/mirx@devidence.dev.shell-extension.zip
 
 ### 🚀 Releasing
 
-Bump `version-name` in `metadata.json` and `version` in `package.json` to the same `X.Y.Z` in a pull request, merge it, then run the **Release** workflow on the default branch. It checks the code, packs the zip and publishes a GitHub Release `vX.Y.Z`. It refuses a version whose tag already exists.
+Run the **Release** workflow from the Actions tab on the default branch. Pick `bump` (`patch`, `minor` or `major`) or set `custom_tag` (e.g. `v1.2.3`, which overrides `bump`), and optionally tick `prerelease`. No version edits are needed. It checks the code, packs the zip and publishes a GitHub Release with that tag. It refuses a tag that already exists. For the first release, choose `minor` (from `v0.0.0`) or `custom_tag: v0.1.0`.
+
+The git tag is the source of truth for the version. The workflow stamps it into `version-name` in `metadata.json` and `version` in `package.json` in the CI workspace only, so the zip carries the right version and nothing is committed. The values in the repo are just the last released or dev value; `npm run check` still requires them to be `X.Y.Z` and equal.
 
 ## 🧭 How it was built
 

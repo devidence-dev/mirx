@@ -1,10 +1,34 @@
 name: 🚀 Release
 
-on: workflow_dispatch
+on:
+    workflow_dispatch:
+        inputs:
+            bump:
+                description: "How to increment the version (ignored when custom_tag is set)."
+                required: true
+                default: patch
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+            custom_tag:
+                description: "Custom tag (e.g. v1.2.3). Overrides the automatic version bump when set."
+                required: false
+                type: string
+            prerelease:
+                description: "Mark as a prerelease?"
+                required: false
+                default: false
+                type: boolean
 
 jobs:
     release:
         name: 🚀 Release
         uses: devidence-dev/workflows/.github/workflows/release-gnome-extension.yml@v2
+        with:
+            bump: ${{ inputs.bump }}
+            custom_tag: ${{ inputs.custom_tag }}
+            prerelease: ${{ inputs.prerelease }}
         permissions:
             contents: write
