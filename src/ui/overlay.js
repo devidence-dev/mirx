@@ -1,19 +1,20 @@
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {contains, handles} from '../core/geometry.js';
-import {renderAnnotations} from '../rendering/annotations.js';
-import {decorationRect, drawDecorations} from './decorations.js';
+import {contains, handles, physicalRect} from '../core/geometry.js';
+import {AnnotationActors} from './annotationActors.js';
+import {decorationRect, DecorationActors} from './decorations.js';
 import {Magnifier} from './magnifier.js';
 import {Toolbar} from './toolbar.js';
 
 /** Translates Shell events into editor actions, and presents the frozen session. */
 export class Overlay {
-    constructor({snapshot, editor, onCancel, onExport, enterAction}) {
-        Object.assign(this, {snapshot, editor, onCancel, onExport, enterAction});
+    constructor({snapshot, editor, onCancel, onExport, enterAction, perfLog = () => false}) {
+        Object.assign(this, {snapshot, editor, onCancel, onExport, enterAction, perfLog});
         this._busy = false;
         this._dragging = false;
         this._selectionDrag = false;
@@ -28,9 +29,12 @@ export class Overlay {
         this.actor.add_child(new Clutter.Actor({content: snapshot.content, width, height}));
         this._shades = [0, 1, 2, 3].map(() => new St.Widget({style_class: 'mirx-shade'}));
         this._shades.forEach(shade => this.actor.add_child(shade));
-        this._canvas = new St.DrawingArea({width, height});
-        this._canvas.connect('repaint', area => this._paint(area));
-        this.actor.add_child(this._canvas);
+        this._annotations = new AnnotationActors({snapshot, width, height});
+        this.actor.add_child(this._annotations.actor);
+        this._draft = new AnnotationActors({snapshot, width, height});
+        this.actor.add_child(this._draft.actor);
+        this._annotationDecorations = new DecorationActors({width, height, createActor: options => new St.Widget(options)});
+        this.actor.add_child(this._annotationDecorations.actor);
         this._frame = new St.Widget({style_class: 'mirx-frame', visible: false});
         this.actor.add_child(this._frame);
         this._handles = [0, 1, 2, 3, 4, 5, 6, 7].map(() =>
@@ -39,7 +43,7 @@ export class Overlay {
 
         this._dimensions = new St.Label({style_class: 'mirx-dimensions', visible: false});
         this.actor.add_child(this._dimensions);
-        this._hint = new St.Label({text: 'Arrastra un área · Clic: ventana · Ctrl+A: monitor · Esc: cancelar',
+        this._hint = new St.Label({text: 'Drag an area · Click: window · Ctrl+A: monitor · Esc: cancel',
             style_class: 'mirx-hint'});
         this.actor.add_child(this._hint);
         this._error = new St.Label({style_class: 'mirx-error', visible: false});
@@ -76,12 +80,7 @@ export class Overlay {
                 return this._release(event);
             return Clutter.EVENT_PROPAGATE;
         });
-        this.snapshot.pixbufReady?.then(() => {
-            if (!this._destroyed) {
-                this._paintKey = null;
-                this._canvas.queue_repaint();
-            }
-        }).catch(() => {});
+
     }
 
     open() {
@@ -93,7 +92,7 @@ export class Overlay {
         Main.layoutManager.emit('system-modal-opened');
         this._grab = Main.pushModal(this.actor, {actionMode: Shell.ActionMode.SYSTEM_MODAL});
         if (this._grab.is_revoked())
-            throw new Error('No se pudo obtener el control del teclado y el ratón');
+            throw new Error('Could not get control of the keyboard and mouse');
         global.focus_manager.add_group(this.actor);
         this._focusGroup = true;
         this.editor.pointerMove(this._point);
@@ -155,10 +154,14 @@ export class Overlay {
     _motion(event) {
         if (this._busy)
             return Clutter.EVENT_STOP;
+        const timed = this.perfLog();
+        const start = timed ? GLib.get_monotonic_time() : 0;
         this._point = this._pointOf(event);
         if (!this._isControl(event) || this._dragging)
             this.editor.pointerMove(this._point, this._options(event));
         this._refresh();
+        if (timed)
+            console.log(`mirx-perf motion ms=${(GLib.get_monotonic_time() - start) / 1000}`);
         return this._dragging ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
     }
 
@@ -261,27 +264,8 @@ export class Overlay {
         if (this._busy)
             return;
         this._finishText(true);
+        this._refresh();
         this.onExport(action);
-    }
-
-    _paint(area) {
-        const cr = area.get_context();
-        try {
-            const selection = this.editor.selection;
-            if (selection) {
-                cr.save();
-                cr.rectangle(selection.x, selection.y, selection.width, selection.height);
-                cr.clip();
-                const annotations = this.editor.annotations.filter(a => a.id !== this._textEdit?.id);
-                if (this.editor.draft?.type)
-                    annotations.push(this.editor.draft);
-                renderAnnotations(cr, annotations, this.snapshot);
-                cr.restore();
-            }
-            drawDecorations(cr, this.editor);
-        } finally {
-            cr.$dispose();
-        }
     }
 
     _updateDecorations() {
@@ -332,7 +316,8 @@ export class Overlay {
                 this._toolbar.place(selection, monitor);
                 this._placedFor = placement;
             }
-            this._dimensions.text = `${Math.round(selection.width * monitor.scale)} × ${Math.round(selection.height * monitor.scale)}`;
+            const physical = physicalRect(selection, monitor.scale);
+            this._dimensions.text = `${physical.width} × ${physical.height}`;
             this._dimensions.show();
             const [, w] = this._dimensions.get_preferred_width(-1);
             const [, h] = this._dimensions.get_preferred_height(w);
@@ -351,13 +336,53 @@ export class Overlay {
         this.actor.set_cursor_type(this.editor.tool === 'text' ? Clutter.CursorType.TEXT :
             this.editor.tool || !selection ? Clutter.CursorType.CROSSHAIR : Clutter.CursorType.DEFAULT);
         this._updateDecorations();
-        // Repaint the full-screen canvas only when its content changes: each repaint is a full-screen software upload.
+        // Each repaint is a software render plus a GPU upload of the whole canvas, so the canvases
+        // cover only what they draw and the committed layer repaints only when its content changes.
         const {annotations, draft} = this.editor;
-        const key = JSON.stringify([annotations, draft?.type ? draft : null, this.editor.selectedId,
-            this._textEdit?.id ?? null, annotations.length || draft?.type ? selection : null]);
-        if (key !== this._paintKey) {
-            this._paintKey = key;
-            this._canvas.queue_repaint();
+        const pixelations = [...annotations, ...(draft?.type ? [draft] : [])]
+            .filter(annotation => annotation.type === 'pixelate');
+        const pixelationKey = JSON.stringify(pixelations);
+        if (pixelations.length && pixelationKey !== this._pixelationKey) {
+            this._pixelationKey = pixelationKey;
+            const pending = this.snapshot.ensurePixelation?.(pixelations) ?? this.snapshot.pixbufReady;
+            pending?.then(() => {
+                if (!this._destroyed) {
+                    this._annotations.invalidatePixels();
+                    this._draft.invalidatePixels();
+                    this._refresh();
+                }
+            }).catch(() => {
+                if (this._pixelationKey === pixelationKey)
+                    this._pixelationKey = null;
+            });
+        } else if (!pixelations.length) {
+            this._pixelationKey = null;
+        }
+        this._annotations.update(annotations, selection, this._textEdit?.id ?? null);
+        // The arrow head and the stroke reach past the draft's corner points.
+        this._draft.update(draft?.type ? [draft] : [], selection);
+        this._annotationDecorations.update(this.editor);
+    }
+
+    // Capture is synchronous: restore the exact UI state even when capture fails.
+    withExportContent(callback) {
+        // A newly shown or resized canvas may still need allocation. Asking for
+        // its allocation forces pending stage layout and any allocation repaint.
+        this._annotations.prepareExport();
+        const actors = [...this._shades, this._annotationDecorations.actor, this._draft.actor,
+            this._frame, ...this._handles, this._dimensions, this._hint, this._error,
+            this._toolbar.actor, this._magnifier.actor, this._textEdit?.actor].filter(Boolean);
+        const visibility = actors.map(actor => actor.visible);
+        try {
+            actors.forEach(actor => actor.hide());
+            return callback();
+        } finally {
+            actors.forEach((actor, i) => {
+                if (visibility[i])
+                    actor.show();
+                else
+                    actor.hide();
+            });
         }
     }
 
@@ -368,7 +393,7 @@ export class Overlay {
 
     showError(message) {
         const monitor = this.editor.monitor ?? this.snapshot.monitors[0];
-        this._error.text = `No se pudo exportar: ${message}`;
+        this._error.text = `Could not export: ${message}`;
         this._error.width = Math.min(600, monitor.width - 40);
         this._error.set_position(monitor.x + 20, monitor.y + 20);
         this._error.show();

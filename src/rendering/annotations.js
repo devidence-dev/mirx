@@ -6,7 +6,7 @@ import {pixelBlocks} from './pixels.js';
 
 const pixelSources = new WeakMap();
 
-function textFont(width) {
+export function textFont(width) {
     const font = Pango.FontDescription.from_string('Sans');
     font.set_absolute_size(Math.max(14, (width || 3) * 5) * Pango.SCALE);
     return font;

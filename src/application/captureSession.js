@@ -32,7 +32,7 @@ export class CaptureSession {
         } catch (error) {
             if (generation === this._generation) {
                 this.close();
-                this.notifyError('No se pudo capturar la pantalla', error.message);
+                this.notifyError('Could not capture the screen', error.message);
             }
         }
     }
@@ -41,26 +41,35 @@ export class CaptureSession {
         if (!this._active || !editor.selection || this._exporting)
             return;
         const generation = this._generation;
-        const operation = {isCancelled: () => generation !== this._generation};
+        const view = this._view;
+        const config = this.settings();
+        const operation = {
+            engine: config.exportEngine ?? 'cairo',
+            isCancelled: () => generation !== this._generation,
+            withExportContent: callback => view.withExportContent(callback),
+        };
         this._exporting = true;
         this._view?.setBusy(true);
         try {
-            await snapshot.pixbufReady;
+            if (operation.engine !== 'gpu')
+                await snapshot.pixbufReady;
+            else if (editor.annotations.some(annotation => annotation.type === 'pixelate'))
+                await (snapshot.ensurePixelation?.(editor.annotations) ?? snapshot.pixbufReady);
             if (operation.isCancelled())
                 return;
             if (action === 'save')
                 await this.output.save(snapshot, editor.selection, editor.annotations,
-                    editor.monitor, this.settings(), operation);
+                    editor.monitor, config, operation);
             else if (action === 'copy')
                 await this.output.copy(snapshot, editor.selection, editor.annotations, editor.monitor, operation);
             else
-                throw new Error(`Acción desconocida: ${action}`);
+                throw new Error(`Unknown action: ${action}`);
             if (generation === this._generation)
                 this.close();
         } catch (error) {
             if (generation === this._generation) {
                 this._view?.showError?.(error.message);
-                this.notifyError('No se pudo exportar la captura', error.message);
+                this.notifyError('Could not export the capture', error.message);
             }
         } finally {
             if (generation === this._generation) {

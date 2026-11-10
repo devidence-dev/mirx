@@ -47,7 +47,7 @@ Press **Alt+Shift+X**. Click a window, drag to select an area, or use **Ctrl+A**
 
 The selection stays within a single monitor. Annotations retain their screen coordinates when the selection is adjusted. The file contains only the crop and its annotations; controls are never exported. The displayed dimensions correspond to the output pixels: a selection of 400 × 300 units on a monitor at 200% produces 800 × 600 pixels.
 
-In preferences, you can change the shortcut, the Enter action, the output folder and format (PNG/JPG), and the default annotation color and stroke width. The default folder is `~/Imágenes/Capturas`. Files include the capture date and time; if the name already exists, a suffix is added without overwriting it. A save error preserves the session so you can try again.
+In preferences, you can change the shortcut, the Enter action, the output folder and format (PNG/JPG), and the default annotation color and stroke width. The default folder is `~/screenshots`. A custom folder must start with `/` or `~/`. Files include the capture date and time; if the name already exists, a suffix is added without overwriting it. A save error preserves the session so you can try again.
 
 ## Architecture
 
