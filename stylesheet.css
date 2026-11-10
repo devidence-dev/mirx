@@ -1,0 +1,49 @@
+/* Liquid glass: the blur comes from Shell.BlurEffect in toolbar.js, St has no backdrop-filter.
+   The tint stays dark enough to keep the labels readable over any capture. */
+.mirx-toolbar {
+    background-color: rgba(20, 24, 32, 0.45);
+    color: #eaf2f8;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 8px;
+    spacing: 6px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.mirx-row { spacing: 5px; }
+.mirx-tool-label { color: #c9d8e2; font-size: 11px; }
+.mirx-button {
+    border-radius: 8px;
+    padding: 6px 9px;
+    min-width: 18px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+.mirx-button:hover, .mirx-button:focus { background-color: rgba(255, 255, 255, 0.18); }
+.mirx-button:checked {
+    background-color: rgba(10, 132, 255, 0.5);
+    border-color: rgba(145, 198, 255, 0.9);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.mirx-swatch { min-width: 12px; padding: 3px; border: 2px solid rgba(255, 255, 255, 0.25); }
+.mirx-swatch:checked { border-color: #ffffff; }
+.mirx-dimensions, .mirx-hint {
+    background-color: rgba(20, 24, 32, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+.mirx-magnifier { background-color: #171a20; border: 1px solid #ffffff; border-radius: 4px; }
+.mirx-coordinates { color: #ffffff; font-size: 12px; padding-left: 8px; }
+.mirx-error { color: #ffffff; background-color: #8c2424; border-radius: 6px; padding: 10px; }
+.mirx-text-editor {
+    background-color: rgba(20, 24, 32, 0.85);
+    color: #ffffff;
+    border: 1px solid #73b8ff;
+    padding: 2px;
+    min-width: 100px;
+    min-height: 24px;
+}
