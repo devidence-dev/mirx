@@ -1,6 +1,6 @@
 /** Logical stage units; strips are local to the monitor origin. No GNOME imports. */
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const DASH_UNITS = 4;
+const RING_UNITS = 16; // logical half-extent: the cross reaches 15 units, plus halo
 
 // Same precedence as the magnifier.
 export function guideScale(monitor, textureScale) {
@@ -10,8 +10,7 @@ export function guideScale(monitor, textureScale) {
 /**
  * Two full-length strips (1 px core plus a 1 px outline on each side) centred on the source pixel
  * the magnifier centres, snapped to the monitor's physical grid and clipped to the monitor.
- * Sizes are logical; core, dash and period are physical pixels along the strip's own axes.
- * Both strips start at the monitor origin, so the dash phase is anchored there.
+ * Sizes are logical; core is in physical pixels across the strip.
  */
 export function alignmentGuideGeometry(point, monitor, textureScale) {
     const scale = guideScale(monitor, textureScale);
@@ -20,11 +19,15 @@ export function alignmentGuideGeometry(point, monitor, textureScale) {
         const centre = (Math.floor(point[key] * textureScale) + 0.5) / textureScale;
         const core = clamp(Math.round((centre - monitor[key]) * scale - 0.5), 0, Math.max(0, Math.ceil(length[key]) - 1));
         const start = Math.max(0, core - 1), end = Math.min(length[key], core + 2);
-        return {start: start / scale, size: Math.max(0, end - start) / scale, core: core - start};
+        return {start: start / scale, size: Math.max(0, end - start) / scale, core: core - start, index: core};
     };
     const x = axis('x'), y = axis('y');
-    const dash = Math.max(1, Math.round(DASH_UNITS * scale));
-    return {scale, dash, period: 2 * dash,
+    // Odd physical square centred on the core pixel centre (index + 0.5); not clipped, the container clips it.
+    const half = Math.max(2, Math.round(RING_UNITS * scale)) + 1;
+    const ring = {x: (x.index - half) / scale, y: (y.index - half) / scale, size: (2 * half + 1) / scale, half,
+        radius: Math.max(3, Math.round(8 * scale)), inner: 0, outer: Math.max(5, Math.round(15 * scale)) - 1};
+    return {scale,
         vertical: {x: x.start, y: 0, width: x.size, height: monitor.height, core: x.core},
-        horizontal: {x: 0, y: y.start, width: monitor.width, height: y.size, core: y.core}};
+        horizontal: {x: 0, y: y.start, width: monitor.width, height: y.size, core: y.core},
+        ring};
 }

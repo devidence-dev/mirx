@@ -1,4 +1,4 @@
-import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handleAt} from './geometry.js';
+import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handleAt, markerRadius} from './geometry.js';
 import {CommandHistory} from './history.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -7,8 +7,25 @@ const startOf = annotation => ({x: annotation.x1, y: annotation.y1});
 const endOf = annotation => ({x: annotation.x2, y: annotation.y2});
 const DRAG_THRESHOLD = 5;
 
+export function supportsGradient(type) {
+    return ['arrow', 'rectangle', 'circle', 'marker'].includes(type);
+}
+
 export function annotationRect(annotation) {
+    if (annotation.type === 'marker') {
+        const r = markerRadius(annotation.width);
+        return {x: annotation.x1 - r, y: annotation.y1 - r, width: 2 * r, height: 2 * r};
+    }
     return fromPoints(startOf(annotation), endOf(annotation));
+}
+
+// Labels are derived from array order, so delete, undo and redo need no renumbering.
+export function markerNumbers(annotations) {
+    const numbers = new Map();
+    for (const annotation of annotations)
+        if (annotation.type === 'marker')
+            numbers.set(annotation.id, numbers.size + 1);
+    return numbers;
 }
 
 function lineDistance(point, a, b) {
@@ -43,6 +60,8 @@ export function annotationHit(annotation, point) {
         const normalized = Math.hypot((point.x - rect.x - rx) / rx, (point.y - rect.y - ry) / ry);
         return Math.abs(normalized - 1) * Math.min(rx, ry) <= tolerance;
     }
+    case 'marker':
+        return distance(point, startOf(annotation)) <= markerRadius(annotation.width);
     default:
         return false;
     }
@@ -63,7 +82,7 @@ function squareEnd(start, point) {
 
 /** Session model. It has no knowledge of GNOME, the clipboard, files or rendering. */
 export class Editor {
-    constructor({monitors, windows = [], color = '#ff0000', width = 3, measureText = estimateText}) {
+    constructor({monitors, windows = [], color = '#ff0000', width = 3, gradient = false, measureText = estimateText}) {
         this.monitors = monitors;
         this.windows = windows;
         this.selection = null;
@@ -71,7 +90,7 @@ export class Editor {
         this.annotations = [];
         this.selectedId = null;
         this.tool = null;
-        this.style = {color, width};
+        this.style = {color, width, gradient};
         this.hover = null;
         this.draft = null;
         this.history = new CommandHistory();
@@ -98,6 +117,10 @@ export class Editor {
         return this.annotations.find(annotation => annotation.id === this.selectedId);
     }
 
+    _gradientFor(type) {
+        return Boolean(this.style.gradient) && supportsGradient(type);
+    }
+
     get interaction() {
         return this._gesture?.kind ?? null;
     }
@@ -113,6 +136,10 @@ export class Editor {
         return window && monitor ? intersect(window, monitor) : null;
     }
 
+    _monitorRect(monitor) {
+        return monitor && {x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height};
+    }
+
     setTool(tool) {
         this.tool = tool;
         this.selectedId = null;
@@ -123,7 +150,11 @@ export class Editor {
         Object.assign(this.style, style);
         const selected = this._selected();
         if (selected) {
-            Object.assign(selected, style);
+            const {gradient, ...shared} = style;
+            Object.assign(selected, shared);
+            // Legacy annotations lack the field; compare as booleans so a no-op toggle records no undo entry.
+            if (gradient !== undefined && supportsGradient(selected.type) && Boolean(selected.gradient) !== Boolean(gradient))
+                selected.gradient = Boolean(gradient);
             if (selected.type === 'text' && style.width !== undefined)
                 this._measure(selected);
         }
@@ -135,7 +166,7 @@ export class Editor {
         if (!monitor)
             return false;
         this.monitor = monitor;
-        this.selection = {x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height};
+        this.selection = this._monitorRect(monitor);
         this.selectedId = null;
         return true;
     }
@@ -161,13 +192,20 @@ export class Editor {
                 return null;
             if (this.tool === 'text')
                 return {newText: {...point}};
+            if (this.tool === 'marker') {
+                const before = this._snapshot();
+                this.annotations.push({id: this._nextId++, type: 'marker', ...this.style,
+                    gradient: this._gradientFor('marker'), x1: point.x, y1: point.y, x2: point.x, y2: point.y});
+                this._commit(before);
+                return null;
+            }
             this.draft = {id: this._nextId++, type: this.tool, ...this.style,
-                x1: point.x, y1: point.y, x2: point.x, y2: point.y};
+                gradient: this._gradientFor(this.tool), x1: point.x, y1: point.y, x2: point.x, y2: point.y};
             this._gesture = {kind: 'draw', start: point, before: this._snapshot()};
             return null;
         }
         const selected = this._selected();
-        if (selected && selected.type !== 'text') {
+        if (selected && !['text', 'marker'].includes(selected.type)) {
             const handle = selected.type === 'arrow'
                 ? distance(point, startOf(selected)) <= 7 ? 'start' : distance(point, endOf(selected)) <= 7 ? 'end' : null
                 : handleAt(annotationRect(selected), point);
@@ -202,8 +240,11 @@ export class Editor {
     pointerMove(point, {shift = false} = {}) {
         const gesture = this._gesture;
         if (!gesture) {
-            if (!this.selection)
-                this.hover = this._windowAt(point, this._monitorAt(point));
+            if (!this.selection) {
+                const monitor = this._monitorAt(point);
+                // With no window under the pointer, a click selects the monitor, so the hover shows it.
+                this.hover = this._windowAt(point, monitor) ?? this._monitorRect(monitor);
+            }
             return;
         }
         switch (gesture.kind) {
@@ -258,7 +299,7 @@ export class Editor {
         this.pointerMove(point, options);
         if (gesture.kind === 'select') {
             this.selection = distance(point, gesture.start) < DRAG_THRESHOLD
-                ? gesture.window : fromPoints(gesture.start, clampPoint(point, gesture.monitor));
+                ? gesture.window ?? this._monitorRect(gesture.monitor) : fromPoints(gesture.start, clampPoint(point, gesture.monitor));
             if (this.selection && (!this.selection.width || !this.selection.height))
                 this.selection = null;
             this.draft = null;
@@ -290,7 +331,7 @@ export class Editor {
             return null;
         const before = this._snapshot();
         const annotation = {id: this._nextId++, type: 'text', ...this.style,
-            x1: point.x, y1: point.y, x2: point.x, y2: point.y, text};
+            gradient: this._gradientFor('text'), x1: point.x, y1: point.y, x2: point.x, y2: point.y, text};
         this._measure(annotation);
         this.annotations.push(annotation);
         this._commit(before);

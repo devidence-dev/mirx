@@ -5,6 +5,7 @@ import St from 'gi://St';
 const TOOLS = [
     [null, '↖', 'Select and move'], ['arrow', '↗', 'Arrow'],
     ['rectangle', '□', 'Rectangle'], ['circle', '○', 'Ellipse (Shift: circle)'],
+    ['marker', '①', 'Numbered marker'],
     ['highlighter', '▰', 'Highlighter'], ['pixelate', '▦', 'Pixelate'], ['text', 'T', 'Text'],
 ];
 const COLORS = [
@@ -50,6 +51,8 @@ export class Toolbar {
         this._widthLabel = new St.Label({text: '3 px', y_align: Clutter.ActorAlign.CENTER});
         style.add_child(this._widthLabel);
         style.add_child(this._button('+', 'Increase width', () => onStyle({width: Math.min(30, this._width + 1)})));
+        this._gradient = this._button('◐', 'Gradient', () => onStyle({gradient: !this._gradientOn}));
+        style.add_child(this._gradient);
 
         const actions = new St.BoxLayout({style_class: 'mirx-row'});
         this.actor.add_child(actions);
@@ -75,6 +78,8 @@ export class Toolbar {
             button[tool === editor.tool ? 'add_style_pseudo_class' : 'remove_style_pseudo_class']('checked');
         for (const [color, button] of this._colors)
             button[color === style.color ? 'add_style_pseudo_class' : 'remove_style_pseudo_class']('checked');
+        this._gradientOn = Boolean(editor.style.gradient);
+        this._gradient[this._gradientOn ? 'add_style_pseudo_class' : 'remove_style_pseudo_class']('checked');
     }
 
     place(selection, monitor) {

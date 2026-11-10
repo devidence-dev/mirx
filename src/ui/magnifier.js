@@ -1,15 +1,37 @@
 import Clutter from 'gi://Clutter';
+import Cogl from 'gi://Cogl';
+import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import {setUniforms, textureUniforms} from './annotationActors.js';
+import {MASK_CODE, MASK_DECLARATIONS} from './shaders.js';
+
 const SIZE = 144;
+const RADIUS = 10;
+
+const MaskEffect = GObject.registerClass(class MirxMaskEffect extends Shell.GLSLEffect {
+    vfunc_build_pipeline() {
+        // Samples its texture explicitly, the same way GNOME Shell's own effects do.
+        this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, MASK_DECLARATIONS, MASK_CODE, true);
+    }
+
+    vfunc_paint_target(node, paintContext) {
+        const {textureSize, contentOffset} = textureUniforms(this);
+        const rs = this.get_actor().get_resource_scale();
+        setUniforms(this, {textureSize, contentOffset, extent: [SIZE * rs, SIZE * rs], radius: [RADIUS * rs]});
+        super.vfunc_paint_target(node, paintContext);
+    }
+});
 
 /** Reuses the frozen texture; nearest filtering preserves individual pixels. */
 export class Magnifier {
     constructor(snapshot, stageWidth, stageHeight) {
         this._scale = snapshot.scale;
-        this.actor = new St.Widget({width: SIZE, height: SIZE + 26,
+        this.actor = new St.Widget({width: SIZE, height: SIZE,
             style_class: 'mirx-magnifier', visible: false, clip_to_allocation: true});
         const viewport = new Clutter.Actor({width: SIZE, height: SIZE, clip_to_allocation: true});
+        viewport.add_effect(new MaskEffect());
         this.actor.add_child(viewport);
         this._image = new Clutter.Actor({content: snapshot.content,
             width: stageWidth, height: stageHeight});
@@ -22,32 +44,15 @@ export class Magnifier {
             this._marks.push({actor, geometry});
             viewport.add_child(actor);
         };
-        const line = (x, y, width, height, color) => {
-            mark({x, y, width, height}, `background-color: ${color};`);
-        };
-        const cross = (segments, outline, core) => {
-            for (const [x, y, width, height] of segments) {
-                if (width) {
-                    line(x - 1.5, y - 1.5, width + 3, 3, outline);
-                    line(x, y - 0.5, width, 1, core);
-                } else {
-                    line(x - 1.5, y - 1.5, 3, height + 3, outline);
-                    line(x - 0.5, y, 1, height, core);
-                }
-            }
-        };
-        // Faint extensions from the ticks to the viewport edges; the centre pixel stays clear.
-        cross([
-            [0, c, c - 18, 0], [c + 18, c, c - 18, 0],
-            [c, 0, 0, c - 18], [c, c + 18, 0, c - 18],
-        ], 'rgba(0, 0, 0, 0.3)', 'rgba(255, 255, 255, 0.45)');
-        cross([
-            [c - 18, c, 12, 0], [c + 6, c, 12, 0],
-            [c, c - 18, 0, 12], [c, c + 6, 0, 12],
-        ], 'rgba(0, 0, 0, 0.8)', 'white');
-        mark({x: c - 4.5, y: c - 4.5, width: 9, height: 9}, 'border: 1px solid white;');
-        this._label = new St.Label({y: SIZE + 3, style_class: 'mirx-coordinates'});
-        this.actor.add_child(this._label);
+        // Translucent bands framing the target pixel; the pixel itself stays uncovered.
+        const band = 'background-color: rgba(40, 40, 40, 0.35); border: 1px solid rgba(255, 255, 255, 0.3);';
+        mark({x: 0, y: c - 4, width: c - 4, height: 8}, band);
+        mark({x: c + 4, y: c - 4, width: SIZE - (c + 4), height: 8}, band);
+        mark({x: c - 4, y: 0, width: 8, height: c - 4}, band);
+        mark({x: c - 4, y: c + 4, width: 8, height: SIZE - (c + 4)}, band);
+        // Last child: draws the border over the image edges and follows the rounded corners.
+        this.actor.add_child(new St.Widget({style_class: 'mirx-magnifier-frame', reactive: false,
+            width: SIZE, height: SIZE}));
     }
 
     update(point, monitor, visible) {
@@ -56,19 +61,18 @@ export class Magnifier {
             return;
         }
         const zoom = 8 * this._scale;
-        const actorScale = Math.min(1, monitor.width / SIZE, monitor.height / (SIZE + 26));
-        const width = SIZE * actorScale, height = (SIZE + 26) * actorScale;
+        const actorScale = Math.min(1, monitor.width / SIZE, monitor.height / SIZE);
+        const width = SIZE * actorScale, height = SIZE * actorScale;
         this.actor.set_scale(actorScale, actorScale);
         const pixelX = (Math.floor(point.x * this._scale) + 0.5) / this._scale;
         const pixelY = (Math.floor(point.y * this._scale) + 0.5) / this._scale;
         this._image.set_scale(zoom, zoom);
         this._image.set_position(SIZE / 2 - pixelX * zoom, SIZE / 2 - pixelY * zoom);
-        this._label.text = `${Math.floor(point.x)}, ${Math.floor(point.y)}`;
-        let x = point.x + 24, y = point.y + 24;
+        let x = point.x + 24, y = point.y + 52;
         if (x + width > monitor.x + monitor.width)
             x = point.x - width - 24;
         if (y + height > monitor.y + monitor.height)
-            y = point.y - height - 24;
+            y = point.y - height - 52;
         x = Math.max(monitor.x, Math.min(x, monitor.x + monitor.width - width));
         y = Math.max(monitor.y, Math.min(y, monitor.y + monitor.height - height));
         this.actor.set_position(x, y);

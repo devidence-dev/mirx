@@ -18,12 +18,14 @@ function actor(visible = true) {
 
 for (const guidesVisible of [true, false]) test(`export hides alignment guides (initially ${guidesVisible ? 'visible' : 'hidden'}) and restores them on success and failure`, () => {
     const view = Object.create(Overlay.prototype);
+    const marker = actor();
+    const gradient = actor();
     Object.assign(view, {
         _shades: [actor(), actor(false)], _annotationDecorations: {actor: actor()}, _draft: {actor: actor()},
         _guides: {actor: actor(guidesVisible)},
         _frame: actor(), _handles: [actor()], _dimensions: actor(), _hint: actor(false),
         _error: actor(), _toolbar: {actor: actor()}, _magnifier: {actor: actor()},
-        _textEdit: {actor: actor()}, _annotations: {actor: actor(), prepareExport() {}},
+        _textEdit: {actor: actor()}, _annotations: {actor: Object.assign(actor(), {children: [marker, gradient]}), prepareExport() {}},
     });
     const hidden = [...view._shades, view._annotationDecorations.actor, view._draft.actor, view._guides.actor,
         view._frame, ...view._handles, view._dimensions, view._hint, view._error, view._toolbar.actor,
@@ -33,14 +35,22 @@ for (const guidesVisible of [true, false]) test(`export hides alignment guides (
     assert.throws(() => view.withExportContent(() => {
         assert.ok(hidden.every(item => !item.visible));
         assert.equal(view._annotations.actor.visible, true);
+        assert.equal(marker.visible, true);
+        assert.equal(gradient.visible, true);
         throw new Error('capture failed');
     }), /capture failed/);
     assert.deepEqual(hidden.map(item => item.visible), before);
+    assert.equal(marker.visible, true);
+    assert.equal(gradient.visible, true);
     assert.equal(view.withExportContent(() => {
         assert.equal(view._guides.actor.visible, false);
+        assert.equal(marker.visible, true);
+        assert.equal(gradient.visible, true);
         return 42;
     }), 42);
     assert.deepEqual(hidden.map(item => item.visible), before);
+    assert.equal(marker.visible, true);
+    assert.equal(gradient.visible, true);
 });
 
 test('export allocates committed annotations before capture', () => {

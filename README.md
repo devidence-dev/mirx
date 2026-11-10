@@ -28,14 +28,15 @@ To update the code loaded in Wayland, you must also log out and back in after in
 
 ## Usage
 
-Press **Alt+Shift+X**. Click a window, drag to select an area, or use **Ctrl+A** to select the monitor under the pointer. The image across all monitors remains frozen while editing.
+Press **Alt+Shift+X**. Click a window, drag to select an area, click empty space (the desktop or the top bar) or press **Ctrl+A** to select the monitor under the pointer. Before you select, the highlight shows what a click would pick: the window under the pointer, or the whole monitor where there is no window. The image across all monitors remains frozen while editing.
 
 | Control | Action |
 | --- | --- |
 | Eight handles / drag empty interior | Resize / move the selection |
 | Arrow keys / Shift+arrow keys | Move / resize the selection by one desktop pixel |
 | ↖ on the toolbar | Select, move, and edit annotations |
-| Arrow, rectangle, ellipse, highlighter, pixelation, text | Choose a tool |
+| Arrow, rectangle, ellipse, numbered marker, highlighter, pixelation, text | Choose a tool |
+| ◐ on the toolbar (Gradient) | Shade new or selected arrows, rectangles, ellipses and numbered markers so the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight. Off at the start of each session; highlighter, text and pixelation are never shaded (graphical checks pending) |
 | Shift while drawing an ellipse | Perfect circle |
 | Double-click text in selection mode | Edit its content |
 | Enter / Shift+Enter while editing text | Confirm / add a line |
@@ -45,7 +46,7 @@ Press **Alt+Shift+X**. Click a window, drag to select an area, or use **Ctrl+A**
 | Enter outside the text editor | Run the configured action |
 | Esc | Cancel text, deselect an annotation, or close the capture |
 
-Before a selection exists, and while creating or resizing one, a magnifier appears next to the pointer and two dotted guides cross at the pixel it marks, spanning the whole monitor under the pointer so you can line up distant edges. They need no setting and show no scale or measurements; they hide whenever the magnifier does and are never exported.
+Before a selection exists, and while creating or resizing one, a magnifier appears next to the pointer and two thin solid guides cross at the pixel it marks, spanning the whole monitor under the pointer so you can line up distant edges. A translucent circle with a cross marks where they cross, and the pointer coordinates are shown next to it. They need no setting; they hide whenever the magnifier does and are never exported. The magnifier is a square with rounded corners, and translucent bands frame the marked pixel without covering it.
 
 The selection stays within a single monitor. Annotations retain their screen coordinates when the selection is adjusted. The file contains only the crop and its annotations; controls are never exported. The displayed dimensions correspond to the output pixels: a selection of 400 × 300 units on a monitor at 200% produces 800 × 600 pixels.
 
@@ -72,4 +73,4 @@ Capture uses `Shell.Screenshot.screenshot_stage_to_content()` and excludes the c
 
 The Node tests do not run GNOME Shell or validate the graphical APIs in a real session. Installation, Wayland capture, visual interaction, clipboard, and PNG/JPG should be checked on Ubuntu 26.04 using the [manual test protocol](tests/MANUAL.md). GNOME Shell and GJS were unavailable in the implementation environment.
 
-The v1 scope of the specification is retained: no selection across multiple monitors, delay, cursor, pencil, lines, step counter, “Save As,” pinning on screen, video, GIF, OCR, or capture history.
+The v1 scope of the specification is retained: no selection across multiple monitors, delay, cursor, pencil, lines, “Save As,” pinning on screen, video, GIF, OCR, or capture history.

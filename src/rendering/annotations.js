@@ -1,9 +1,9 @@
 import Pango from 'gi://Pango';
 import PangoCairo from 'gi://PangoCairo';
 
-export function textFont(width) {
+export function textFont(width, size = Math.max(14, (width || 3) * 5)) {
     const font = Pango.FontDescription.from_string('Sans');
-    font.set_absolute_size(Math.max(14, (width || 3) * 5) * Pango.SCALE);
+    font.set_absolute_size(size * Pango.SCALE);
     return font;
 }
 

@@ -46,7 +46,7 @@ export class Overlay {
 
         this._dimensions = new St.Label({style_class: 'mirx-dimensions', visible: false});
         this.actor.add_child(this._dimensions);
-        this._hint = new St.Label({text: 'Drag an area · Click: window · Ctrl+A: monitor · Esc: cancel',
+        this._hint = new St.Label({text: 'Drag an area · Click: window or monitor · Ctrl+A: monitor · Esc: cancel',
             style_class: 'mirx-hint'});
         this.actor.add_child(this._hint);
         this._error = new St.Label({style_class: 'mirx-error', visible: false});

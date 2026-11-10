@@ -62,6 +62,11 @@ export function handleAt(rect, point, tolerance = 7) {
         .sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y))[0]?.id ?? null;
 }
 
+// Numbered marker radius in logical pixels; the minimum keeps one-digit numbers readable.
+export function markerRadius(width) {
+    return Math.max(10, 4 * width);
+}
+
 // Integer physical-pixel rectangle of a logical selection. The single source of truth
 // for export size and position in every engine and for the dimensions label.
 export function physicalRect(selection, scale) {
