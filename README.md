@@ -24,7 +24,7 @@ gnome-extensions enable mirx@mirx.local
 gnome-extensions prefs mirx@mirx.local
 ```
 
-To update the code loaded in Wayland, you must also log out and back in after installing the new package. `npm run pack` creates the archive without installing it. You can specify a different compiler location with `GLIB_COMPILE_SCHEMAS=/path/to/compiler`.
+To update the code loaded in Wayland, you must also log out and back in after installing the new package. `npm run pack` creates the archive without installing it. You can specify a different compiler location with `GLIB_COMPILE_SCHEMAS=/path/to/compiler`; the override must be an absolute path.
 
 ## Usage
 

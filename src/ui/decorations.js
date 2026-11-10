@@ -52,15 +52,15 @@ export class DecorationActors {
         this._box.set_position(bounds.x, bounds.y);
         this._box.set_size(bounds.width, bounds.height);
         this._box.show();
-        const points =
-            annotation.type === 'arrow'
-                ? [
-                      { x: annotation.x1, y: annotation.y1 },
-                      { x: annotation.x2, y: annotation.y2 },
-                  ]
-                : ['text', 'marker'].includes(annotation.type)
-                  ? []
-                  : handles(rect);
+        let points = [];
+        if (annotation.type === 'arrow') {
+            points = [
+                { x: annotation.x1, y: annotation.y1 },
+                { x: annotation.x2, y: annotation.y2 },
+            ];
+        } else if (!['text', 'marker'].includes(annotation.type)) {
+            points = handles(rect);
+        }
         this._handles.forEach((handle, i) => {
             if (points[i]) {
                 handle.set_position(points[i].x - 4, points[i].y - 4);

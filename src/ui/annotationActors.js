@@ -149,7 +149,7 @@ function updateRectangle(entry, annotation, color, width) {
 function updateHighlighter(entry, annotation, color) {
     place(entry.actor, rectangleGeometry(annotation));
     if (entry.style !== color) {
-        const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+        const rgb = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16));
         entry.actor.set_style(`background-color: rgba(${rgb.join(', ')}, 0.35);`);
         entry.style = color;
     }
@@ -322,7 +322,7 @@ export class AnnotationActors {
         entry.empty = annotation.x1 === annotation.x2 || annotation.y1 === annotation.y2;
         entry.effect.annotation = { ...annotation };
         entry.effect.physicalScale = this._physicalScale;
-        entry.effect.color = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+        entry.effect.color = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255);
         entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
         entry.actor.queue_redraw();
     }
@@ -332,7 +332,7 @@ export class AnnotationActors {
         place(entry.disc, markerDisc(annotation, 1, scale).rect);
         entry.effect.marker = annotation;
         entry.effect.physicalScale = scale;
-        entry.effect.color = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+        entry.effect.color = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255);
         entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
         entry.disc.queue_redraw();
         updateMarkerLabel(entry, annotation, color, width, String(number), scale);
