@@ -1,90 +1,148 @@
-# mirx
+# 📸 mirx
 
-A GNOME Shell extension for capturing a window, an area, or a monitor and annotating it before copying or saving. It implements the specification in `docs/mirx.feature`. It works locally, without external services.
+Screenshot and annotate on GNOME Shell: grab a window, an area or a monitor, mark it up, then copy or save. Everything stays on your machine.
 
-The extension targets **Ubuntu 26.04 with GNOME Shell 50 on Wayland**. Ubuntu identifies this GNOME version in its [official release notes](https://documentation.ubuntu.com/release-notes/26.04/changes-since-previous-interim/). Compatibility with other Shell versions is not declared.
+[![CI](https://github.com/devidence-dev/mirx/actions/workflows/ci.yml/badge.svg)](https://github.com/devidence-dev/mirx/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=devidence-dev_mirx&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=devidence-dev_mirx)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](LICENSE)
 
-## Set up and install
+Targets **GNOME Shell 50 on Wayland**, tested on Ubuntu 26.04 LTS (GNOME Shell 50.1). Other Shell versions are not declared compatible.
 
-For development or packaging, you need Node.js 22 or later and `glib-compile-schemas` (the `libglib2.0-bin` package). The packager uses `zip`, or Python 3 if `zip` is unavailable. The installed extension uses libraries included with GNOME; it does not need Node.js or npm packages.
+## ✨ Features
 
-From the repository root:
+- 🎯 **Three ways to select**: drag an area, click a window, or click empty space (desktop or top bar) or press Ctrl+A for the whole monitor under the pointer. A selection stays within one monitor.
+- 🔍 **Magnifier** with a band crosshair and live cursor coordinates.
+- 📐 **Alignment guides**: thin guides span the monitor under the pointer, with a translucent circle-and-cross mark on the pixel you are aiming at.
+- ✏️ **Annotation tools**: arrow, rectangle, ellipse, numbered marker, highlighter, pixelate and text. Seven colours, stroke width 1-30 px.
+- ① **Numbered markers** that renumber themselves when you delete one.
+- ◐ **Gradient toggle** for arrows, rectangles, ellipses and markers.
+- ↩️ **Undo / redo** per gesture.
+- 💾 **Copy or save** as PNG or JPG. Guides, magnifier, toolbar and handles are never exported.
+- 🔒 **Local only**: no network, no capture history.
+- ⚡ **GPU rendering** for the overlay and the export.
+- 🖥️ **HiDPI and fractional scaling**: exports match physical pixels (a 400 × 300 selection at 200% saves 800 × 600).
+
+## 📦 Installation
+
+### 📥 From GitHub Releases
+
+Download `mirx@devidence.dev.shell-extension.zip` from the [latest release](https://github.com/devidence-dev/mirx/releases/latest), then install it:
 
 ```sh
-npm test
-npm run check
+gnome-extensions install --force mirx@devidence.dev.shell-extension.zip
+```
+
+Then **log out and back in** (Wayland only loads new extension code at login), and enable it:
+
+```sh
+gnome-extensions enable mirx@devidence.dev
+```
+
+### 🚧 extensions.gnome.org (planned)
+
+Publication on [extensions.gnome.org](https://extensions.gnome.org/) is planned for a future version. Until then, use GitHub Releases or build from source.
+
+### From source
+
+You need Node.js 22 or later, `glib-compile-schemas` (package `libglib2.0-bin`) and `zip` (or Python 3 as a fallback).
+
+```sh
 npm run pack
-gnome-extensions install --force dist/mirx@mirx.local.shell-extension.zip
+gnome-extensions install --force dist/mirx@devidence.dev.shell-extension.zip
 ```
 
-After the first installation, log out and back in so GNOME recognizes the extension. Enable it and open its preferences:
+Then **log out and back in** (Wayland only loads new extension code at login), and enable it:
 
 ```sh
-gnome-extensions enable mirx@mirx.local
-gnome-extensions prefs mirx@mirx.local
+gnome-extensions enable mirx@devidence.dev
+gnome-extensions prefs mirx@devidence.dev
 ```
 
-To update the code loaded in Wayland, you must also log out and back in after installing the new package. `npm run pack` creates the archive without installing it. You can specify a different compiler location with `GLIB_COMPILE_SCHEMAS=/path/to/compiler`; the override must be an absolute path.
+Updating works the same way: install the new package, then log out and in.
 
-## Usage
-
-Press **Alt+Shift+X**. Click a window, drag to select an area, click empty space (the desktop or the top bar) or press **Ctrl+A** to select the monitor under the pointer. Before you select, the highlight shows what a click would pick: the window under the pointer, or the whole monitor where there is no window. The image across all monitors remains frozen while editing.
-
-| Control                                                                   | Action                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Eight handles / drag empty interior                                       | Resize / move the selection                                                                                                                                                                                                                                                                                               |
-| Arrow keys / Shift+arrow keys                                             | Move / resize the selection by one desktop pixel                                                                                                                                                                                                                                                                          |
-| ↖ on the toolbar                                                          | Select, move, and edit annotations                                                                                                                                                                                                                                                                                        |
-| Arrow, rectangle, ellipse, numbered marker, highlighter, pixelation, text | Choose a tool                                                                                                                                                                                                                                                                                                             |
-| ◐ on the toolbar (Gradient)                                               | Shade new or selected arrows, rectangles, ellipses and numbered markers so the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight. Off at the start of each session; highlighter, text and pixelation are never shaded (graphical checks pending) |
-| Shift while drawing an ellipse                                            | Perfect circle                                                                                                                                                                                                                                                                                                            |
-| Double-click text in selection mode                                       | Edit its content                                                                                                                                                                                                                                                                                                          |
-| Enter / Shift+Enter while editing text                                    | Confirm / add a line                                                                                                                                                                                                                                                                                                      |
-| Delete                                                                    | Delete the selected annotation                                                                                                                                                                                                                                                                                            |
-| Ctrl+Z / Ctrl+Shift+Z                                                     | Undo / redo                                                                                                                                                                                                                                                                                                               |
-| Ctrl+C / Ctrl+S                                                           | Copy PNG / save in the chosen format                                                                                                                                                                                                                                                                                      |
-| Enter outside the text editor                                             | Run the configured action                                                                                                                                                                                                                                                                                                 |
-| Esc                                                                       | Cancel text, deselect an annotation, or close the capture                                                                                                                                                                                                                                                                 |
-
-Before a selection exists, and while creating or resizing one, a magnifier appears next to the pointer and two thin solid guides cross at the pixel it marks, spanning the whole monitor under the pointer so you can line up distant edges. A translucent circle with a cross marks where they cross, and the pointer coordinates are shown next to it. They need no setting; they hide whenever the magnifier does and are never exported. The magnifier is a square with rounded corners, and translucent bands frame the marked pixel without covering it.
-
-The selection stays within a single monitor. Annotations retain their screen coordinates when the selection is adjusted. The file contains only the crop and its annotations; controls are never exported. The displayed dimensions correspond to the output pixels: a selection of 400 × 300 units on a monitor at 200% produces 800 × 600 pixels.
-
-In preferences, you can change the shortcut, the Enter action, the output folder and format (PNG/JPG), and the default annotation color and stroke width. The default folder is `~/screenshots`. A custom folder must start with `/` or `~/`. Files include the capture date and time; if the name already exists, a suffix is added without overwriting it. A save error preserves the session so you can try again.
-
-## Architecture
-
-| Layer             | Responsibility                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `src/core`        | Geometry, selection, annotations, and undo/redo commands. JavaScript with no GNOME dependencies. |
-| `src/application` | Coordinate capture and export through injected services; manage concurrency and shutdown.        |
-| `src/platform`    | Shell capture, file, and clipboard adapters.                                                     |
-| `src/rendering`   | Draw annotations and sample pixelation from the original image.                                  |
-| `src/ui`          | Input events, overlay view, toolbar, magnifier, and decorations.                                 |
-| `extension.js`    | Compose services and manage the extension lifecycle.                                             |
-
-Application dependencies are passed to the constructor, allowing the adapters to be replaced in tests. `CommandHistory` records one operation per gesture and discards the redo branch when a new action is created. The view and export share annotation rendering; decorations are separate. Text is measured using Pango, with the measurement injected into the model.
-
-Capture uses `Shell.Screenshot.screenshot_stage_to_content()` and excludes the cursor texture. The integration follows the [GNOME Shell 50 APIs](https://github.com/GNOME/gnome-shell/blob/gnome-50/js/ui/screenshot.js). Annotations and exports share GPU actors and shaders. Export paints the selection on the physical pixel grid; clipboard and PNG saves reuse the compositor's PNG bytes, while JPG saves encode the returned pixbuf. No capture history is stored.
-
-## Development
+**One-time migration from the old UUID.** Earlier builds used `mirx@mirx.local`. If you installed one, uninstall it, log out and back in, and only then install the new package. Both register the same shortcut and settings schema, so they must not coexist. Your settings are kept because the schema id and path did not change.
 
 ```sh
-npm test              # unit tests
-npm run lint          # Biome: lint and format check
-npm run format        # Biome: apply formatting and safe lint fixes
-npm run glsl          # validate the GLSL shaders (needs glslangValidator, package glslang-tools)
-npm run coverage      # tests with coverage, writes lcov.info
-npm run check         # metadata, JavaScript syntax, and schema
-npm run pack          # build dist/mirx@mirx.local.shell-extension.zip
+gnome-extensions uninstall mirx@mirx.local
 ```
 
-Install the dev dependency (Biome) once with `npm ci`; the tests and the extension itself have no runtime dependencies.
+`GLIB_COMPILE_SCHEMAS=/absolute/path` overrides the schema compiler used by `npm run pack`.
 
-## Validation
+## 🖱️ Usage
 
-`npm test` checks geometry, editing and history, pixelation sampling, concurrency and session errors, and the preferences schema. `npm run check` checks metadata, JavaScript syntax, and the schema using GLib. Installing npm dependencies is not required for either.
+Press **Alt+Shift+X**. The screen freezes. Hover to preview what a click would pick (a window, or the whole monitor where there is no window), then drag, click or press Ctrl+A. Annotate, then copy or save.
 
-The Node tests do not run GNOME Shell or validate the graphical APIs in a real session. Installation, Wayland capture, visual interaction, clipboard, and PNG/JPG should be checked on Ubuntu 26.04 using the [manual test protocol](tests/MANUAL.md). GNOME Shell and GJS were unavailable in the implementation environment.
+Annotations keep their screen position when you adjust the selection.
 
-The v1 scope of the specification is retained: no selection across multiple monitors, delay, cursor, pencil, lines, “Save As,” pinning on screen, video, GIF, OCR, or capture history.
+## ⌨️ Keyboard shortcuts
+
+| Key                              | Action                                                    |
+| -------------------------------- | --------------------------------------------------------- |
+| Alt+Shift+X                      | Open the capture (configurable)                           |
+| Ctrl+A                           | Select the monitor under the pointer                      |
+| Arrow keys / Shift+arrow keys    | Move / resize the selection by one pixel                  |
+| Ctrl+C / Ctrl+S                  | Copy to clipboard / save to file                          |
+| Enter                            | Run the configured Enter action (copy or save)            |
+| Ctrl+Z / Ctrl+Shift+Z            | Undo / redo                                               |
+| Delete                           | Delete the selected annotation                            |
+| Esc                              | Cancel text, deselect an annotation, or close the capture |
+| Shift (while drawing an ellipse) | Perfect circle                                            |
+| Enter / Shift+Enter (text)       | Confirm / add a new line                                  |
+
+Mouse: drag the eight handles to resize the selection, or drag its empty interior to move it. With the select tool (↖), click an annotation to edit it, or double-click text to change its content.
+
+## ⚙️ Preferences
+
+Open with `gnome-extensions prefs mirx@devidence.dev`.
+
+| Setting           | Default         | Notes                                           |
+| ----------------- | --------------- | ----------------------------------------------- |
+| Keyboard shortcut | `Alt+Shift+X`   | Needs Ctrl, Alt or Super                        |
+| Enter action      | Copy            | Copy or Save                                    |
+| Image format      | PNG             | PNG or JPG                                      |
+| Capture folder    | `~/screenshots` | Must start with `/` or `~/`. Created if missing |
+| Default colour    | `#ff0000`       | Hex, six digits                                 |
+| Default width     | 3 px            | 1-30                                            |
+
+File names carry the capture date and time. If a name exists, a suffix is added instead of overwriting. A save error keeps your session open so you can retry.
+
+The schema also has a hidden `perf-log` key (default off) that logs motion and export timings, for developers.
+
+## 🛠️ Development
+
+Node with no runtime dependencies. [Biome](https://biomejs.dev/) is the only devDependency (`npm ci`). `npm run glsl` needs `glslangValidator`, from the OS package `glslang-tools`.
+
+```sh
+npm test         # Node test suite
+npm run lint     # Biome lint and format check
+npm run format   # Biome: apply formatting and safe fixes
+npm run glsl     # compile the GLSL shaders
+npm run coverage # tests with coverage, writes lcov.info
+npm run check    # metadata, JS syntax and schema
+npm run pack     # build dist/mirx@devidence.dev.shell-extension.zip
+```
+
+### 🚀 Releasing
+
+Bump `version-name` in `metadata.json` and `version` in `package.json` to the same `X.Y.Z` in a pull request, merge it, then run the **Release** workflow on the default branch. It checks the code, packs the zip and publishes a GitHub Release `vX.Y.Z`. It refuses a version whose tag already exists.
+
+## 🧭 How it was built
+
+mirx was vibe-coded with AI coding assistants. To keep that orderly, it follows a spec-driven workflow with [OpenSpec](https://github.com/Fission-AI/OpenSpec): every change goes through proposal, specs, design and tasks before implementation, and is archived after verification. The living capability specs are in [`openspec/specs/`](openspec/specs/), and finished changes are kept in [`openspec/changes/archive/`](openspec/changes/archive/).
+
+Every push and pull request is validated by CI, using the reusable `ci-gnome-extension.yml` from `devidence-dev/workflows`:
+
+- Biome lint and format (cognitive complexity ≤ 15)
+- GLSL shader compilation with `glslangValidator`
+- the Node test suite
+- coverage uploaded to SonarCloud, with a blocking Quality Gate
+- Betterleaks secret scanning over the full history
+- the pack build check
+
+The Node tests do not run GNOME Shell, so real GNOME Shell 50 / Wayland sessions are checked by hand with [`tests/MANUAL.md`](tests/MANUAL.md), at 100%, 200% and about 133% scaling. Checks not yet run there are marked pending in that file.
+
+## 📜 License
+
+mirx is free software, licensed under the GNU General Public License, version 2 or (at your option) any later version (GPL-2.0-or-later). See [LICENSE](LICENSE).
+
+Copyright (C) 2026 PX1

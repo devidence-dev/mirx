@@ -1,0 +1,10 @@
+name: 🚀 Release
+
+on: workflow_dispatch
+
+jobs:
+    release:
+        name: 🚀 Release
+        uses: devidence-dev/workflows/.github/workflows/release-gnome-extension.yml@v2
+        permissions:
+            contents: write

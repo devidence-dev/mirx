@@ -5,11 +5,17 @@ import { schemaCompiler } from './tools.js';
 
 const metadata = JSON.parse(readFileSync('metadata.json', 'utf8'));
 if (
-    metadata.uuid !== 'mirx@mirx.local' ||
+    metadata.uuid !== 'mirx@devidence.dev' ||
+    metadata.url !== 'https://github.com/devidence-dev/mirx' ||
     metadata['settings-schema'] !== 'org.gnome.shell.extensions.mirx' ||
     !metadata['shell-version']?.includes('50')
 )
     throw new Error('Invalid extension metadata');
+const version = metadata['version-name'];
+const packageVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`metadata.json version-name '${version}' is not X.Y.Z`);
+if (version !== packageVersion)
+    throw new Error(`version-name '${version}' differs from package.json version '${packageVersion}'`);
 function javascriptFiles(path) {
     return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
         if (['.git', 'node_modules', 'dist'].includes(entry.name)) return [];
