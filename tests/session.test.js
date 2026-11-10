@@ -173,6 +173,7 @@ test('stale failures do not disturb a newer session', async () => {
     const output = deferred();
     f.setOutput(() => output.promise);
     const oldExport = oldView.onExport('save');
+    await Promise.resolve(); // let the save start before cancelling, so its failure is stale
     oldView.onCancel();
     const currentView = await f.open();
     output.reject(new Error('old save'));
@@ -189,6 +190,7 @@ test('output cancellation follows the session generation', async () => {
     const output = deferred();
     f.setOutput(() => output.promise);
     const exporting = view.onExport('copy');
+    await Promise.resolve(); // export awaits snapshot.pixbufReady before calling output
     const operation = f.calls[0].args[4];
     assert.equal(operation.isCancelled(), false);
     view.onCancel();
@@ -219,4 +221,20 @@ test('modal open failure destroys the view and allows recovery', async () => {
     await session.open();
     assert.equal(views.length, 2);
     assert.equal(views[1].destroyed, 0);
+});
+
+test('export waits for the background pixbuf before copying', async () => {
+    const f = fixture();
+    const opening = f.session.open();
+    const pixbuf = deferred();
+    f.captures[0].resolve({...snapshot, pixbufReady: pixbuf.promise});
+    await opening;
+    const view = f.views[0];
+    select(view);
+    const exporting = view.onExport('copy');
+    assert.deepEqual(f.calls, []);
+    pixbuf.resolve();
+    await exporting;
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0].action, 'copy');
 });

@@ -45,6 +45,9 @@ export class CaptureSession {
         this._exporting = true;
         this._view?.setBusy(true);
         try {
+            await snapshot.pixbufReady;
+            if (operation.isCancelled())
+                return;
             if (action === 'save')
                 await this.output.save(snapshot, editor.selection, editor.annotations,
                     editor.monitor, this.settings(), operation);

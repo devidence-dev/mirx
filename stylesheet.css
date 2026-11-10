@@ -47,3 +47,6 @@
     min-width: 100px;
     min-height: 24px;
 }
+.mirx-shade { background-color: rgba(0, 0, 0, 0.48); }
+.mirx-frame { border: 1px solid rgb(51, 166, 255); }
+.mirx-handle { background-color: #ffffff; border: 1px solid rgb(26, 115, 255); }

@@ -4,9 +4,9 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {contains} from '../core/geometry.js';
+import {contains, handles} from '../core/geometry.js';
 import {renderAnnotations} from '../rendering/annotations.js';
-import {drawDecorations} from './decorations.js';
+import {decorationRect, drawDecorations} from './decorations.js';
 import {Magnifier} from './magnifier.js';
 import {Toolbar} from './toolbar.js';
 
@@ -26,9 +26,16 @@ export class Overlay {
         this.actor = new St.Widget({name: 'mirx-overlay', reactive: true, can_focus: true,
             width, height});
         this.actor.add_child(new Clutter.Actor({content: snapshot.content, width, height}));
+        this._shades = [0, 1, 2, 3].map(() => new St.Widget({style_class: 'mirx-shade'}));
+        this._shades.forEach(shade => this.actor.add_child(shade));
         this._canvas = new St.DrawingArea({width, height});
         this._canvas.connect('repaint', area => this._paint(area));
         this.actor.add_child(this._canvas);
+        this._frame = new St.Widget({style_class: 'mirx-frame', visible: false});
+        this.actor.add_child(this._frame);
+        this._handles = [0, 1, 2, 3, 4, 5, 6, 7].map(() =>
+            new St.Widget({style_class: 'mirx-handle', width: 8, height: 8, visible: false}));
+        this._handles.forEach(handle => this.actor.add_child(handle));
 
         this._dimensions = new St.Label({style_class: 'mirx-dimensions', visible: false});
         this.actor.add_child(this._dimensions);
@@ -69,6 +76,12 @@ export class Overlay {
                 return this._release(event);
             return Clutter.EVENT_PROPAGATE;
         });
+        this.snapshot.pixbufReady?.then(() => {
+            if (!this._destroyed) {
+                this._paintKey = null;
+                this._canvas.queue_repaint();
+            }
+        }).catch(() => {});
     }
 
     open() {
@@ -265,9 +278,47 @@ export class Overlay {
                 renderAnnotations(cr, annotations, this.snapshot);
                 cr.restore();
             }
-            drawDecorations(cr, this.editor, this.actor.width, this.actor.height);
+            drawDecorations(cr, this.editor);
         } finally {
             cr.$dispose();
+        }
+    }
+
+    _updateDecorations() {
+        const rect = decorationRect(this.editor);
+        const W = this.actor.width, H = this.actor.height;
+        if (rect) {
+            const {x, y, width, height} = rect;
+            const bands = [
+                [0, 0, W, y],
+                [0, y + height, W, H - y - height],
+                [0, y, x, height],
+                [x + width, y, W - x - width, height],
+            ];
+            this._shades.forEach((shade, i) => {
+                const [sx, sy, sw, sh] = bands[i];
+                shade.set_position(sx, sy);
+                shade.set_size(Math.max(0, sw), Math.max(0, sh));
+                shade.show();
+            });
+            this._frame.set_position(x, y);
+            this._frame.set_size(width, height);
+            this._frame.show();
+        } else {
+            this._shades[0].set_position(0, 0);
+            this._shades[0].set_size(W, H);
+            this._shades[0].show();
+            this._shades.slice(1).forEach(shade => shade.hide());
+            this._frame.hide();
+        }
+        const selection = this.editor.selection;
+        if (selection) {
+            handles(selection).forEach(({x, y}, i) => {
+                this._handles[i].set_position(x - 4, y - 4);
+                this._handles[i].show();
+            });
+        } else {
+            this._handles.forEach(handle => handle.hide());
         }
     }
 
@@ -275,7 +326,12 @@ export class Overlay {
         const {selection, monitor} = this.editor;
         if (selection) {
             this._toolbar.update(this.editor);
-            this._toolbar.place(selection, monitor);
+            // The toolbar size follows the tool and style labels, so those also trigger a new placement.
+            const placement = JSON.stringify([selection, this.editor.tool, this.editor.style, this.editor.selectedId]);
+            if (placement !== this._placedFor) {
+                this._toolbar.place(selection, monitor);
+                this._placedFor = placement;
+            }
             this._dimensions.text = `${Math.round(selection.width * monitor.scale)} × ${Math.round(selection.height * monitor.scale)}`;
             this._dimensions.show();
             const [, w] = this._dimensions.get_preferred_width(-1);
@@ -284,6 +340,7 @@ export class Overlay {
                 Math.max(monitor.y, selection.y - h - 4));
             this._hint.hide();
         } else {
+            this._placedFor = null;
             const m = this.snapshot.monitors.find(item => contains(item, this._point)) ?? this.snapshot.monitors[0];
             this._hint.set_position(m.x + 20, m.y + 20);
         }
@@ -293,7 +350,15 @@ export class Overlay {
             (!selection || this._selectionDrag));
         this.actor.set_cursor_type(this.editor.tool === 'text' ? Clutter.CursorType.TEXT :
             this.editor.tool || !selection ? Clutter.CursorType.CROSSHAIR : Clutter.CursorType.DEFAULT);
-        this._canvas.queue_repaint();
+        this._updateDecorations();
+        // Repaint the full-screen canvas only when its content changes: each repaint is a full-screen software upload.
+        const {annotations, draft} = this.editor;
+        const key = JSON.stringify([annotations, draft?.type ? draft : null, this.editor.selectedId,
+            this._textEdit?.id ?? null, annotations.length || draft?.type ? selection : null]);
+        if (key !== this._paintKey) {
+            this._paintKey = key;
+            this._canvas.queue_repaint();
+        }
     }
 
     setBusy(busy) {
@@ -310,6 +375,7 @@ export class Overlay {
     }
 
     destroy() {
+        this._destroyed = true;
         if (this._focusGroup) {
             global.focus_manager.remove_group(this.actor);
             this._focusGroup = false;
