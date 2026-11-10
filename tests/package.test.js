@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { schemaCompiler } from '../scripts/tools.js';
+import { ICON_FILES } from '../src/ui/toolbarModel.js';
 
 test('metadata identifies a GNOME 50 extension and its schema', () => {
     const metadata = JSON.parse(readFileSync('metadata.json', 'utf8'));
@@ -52,6 +53,7 @@ test('zip holds only runtime files and no compiled schema', (t) => {
         'metadata.json',
         'stylesheet.css',
         'icons/mirx-symbolic.svg',
+        ...ICON_FILES.map((file) => `icons/tools/${file}`),
         'schemas/org.gnome.shell.extensions.mirx.gschema.xml',
         ...sourceFiles('src'),
     ];
@@ -84,4 +86,30 @@ test('check fails when version-name differs from package.json version', () => {
     const result = checkWithVersions('0.1.0', '0.2.0');
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /version-name '0\.1\.0' differs from package\.json version '0\.2\.0'/);
+});
+
+test('missing toolbar icon fails packaging without writing a zip', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mirx-missing-icon-'));
+    try {
+        for (const name of [
+            'extension.js',
+            'prefs.js',
+            'metadata.json',
+            'stylesheet.css',
+            'src',
+            'schemas',
+            'icons',
+            'scripts',
+            'package.json',
+        ])
+            cpSync(name, join(dir, name), { recursive: true });
+        const missing = `icons/tools/${ICON_FILES[0]}`;
+        rmSync(join(dir, missing));
+        const result = spawnSync(process.execPath, ['scripts/pack.js'], { cwd: dir, encoding: 'utf8' });
+        assert.notEqual(result.status, 0);
+        assert.ok(result.stderr.includes(missing));
+        assert.ok(!existsSync(join(dir, 'dist/mirx@devidence.dev.shell-extension.zip')));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });

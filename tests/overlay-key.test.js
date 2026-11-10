@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { toolForKey, TOOLS } from '../src/ui/toolbarModel.js';
 
 const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
     .replace(/^import [^;]*;\n/gm, '')
@@ -21,10 +22,22 @@ function fixture({ action = 'copy', timed = true, selection = true } = {}) {
         KEY_C: 67,
         KEY_s: 115,
         KEY_S: 83,
-        ModifierType: { CONTROL_MASK: 1 },
+        KEY_a: 97,
+        KEY_A: 65,
+        KEY_z: 122,
+        KEY_Z: 90,
+        KEY_Delete: 1000,
+        KEY_Left: 1001,
+        KEY_Right: 1002,
+        KEY_Up: 1003,
+        KEY_Down: 1004,
+        keysym_to_unicode: (symbol) => (symbol < 256 ? symbol : 0),
+        ModifierType: { CONTROL_MASK: 1, MOD1_MASK: 2, SUPER_MASK: 4, META_MASK: 8, SHIFT_MASK: 16 },
     };
     const Overlay = vm.runInNewContext(source, {
         Clutter,
+        toolForKey,
+        global: { focus_manager: { navigate_from_event: () => false } },
         GLib: {
             get_monotonic_time() {
                 calls.push('clock');
@@ -40,8 +53,34 @@ function fixture({ action = 'copy', timed = true, selection = true } = {}) {
         _textEdit: null,
         perfLog: () => timed,
         enterAction: () => action,
-        editor: { selection: selection ? {} : null },
-        _options: () => ({ shift: false }),
+        _tooltip: { hideNow() {} },
+        actor: { grab_key_focus() {} },
+        editor: {
+            selection: selection ? {} : null,
+            setTool(tool) {
+                calls.push(['tool', tool]);
+            },
+            selectMonitor() {
+                calls.push('selectMonitor');
+            },
+            undo() {
+                calls.push('undo');
+            },
+            redo() {
+                calls.push('redo');
+            },
+            deleteSelected() {
+                calls.push('delete');
+            },
+            nudge(...args) {
+                calls.push(['nudge', ...args]);
+            },
+            escape() {
+                calls.push('escape');
+                return 'handled';
+            },
+        },
+        _options: (event) => ({ shift: Boolean(event.get_state() & Clutter.ModifierType.SHIFT_MASK) }),
         _finishText() {
             calls.push('text');
             now += 200;
@@ -131,4 +170,48 @@ test('busy key and toolbar export do no work; toolbar timing includes text commi
     toolbar.view._export('save');
     toolbar.deliver();
     assert.deepEqual(toolbar.calls, ['clock', 'text', 'refresh', 'save', 'clock', 'mirx-perf export ms=2.5']);
+});
+
+test('tool keys work in both cases and are gated by state and modifiers', () => {
+    for (const { key, id } of TOOLS) {
+        for (const char of [key, key.toLowerCase()]) {
+            const f = fixture();
+            assert.equal(f.view._key(f.event(char.charCodeAt(0))), 'stop');
+            assert.deepEqual(
+                f.calls.filter((call) => Array.isArray(call)),
+                [['tool', id]],
+            );
+        }
+    }
+    assert.equal(TOOLS[0].id, 'select', 'V chooses the explicit select tool');
+    for (const gate of ['selection', 'text', 'drag', 'busy', 'ctrl', 'alt', 'super', 'meta']) {
+        const f = fixture({ selection: gate !== 'selection' });
+        f.view._textEdit = gate === 'text' ? {} : null;
+        f.view._dragging = gate === 'drag';
+        f.view._busy = gate === 'busy';
+        const masks = { ctrl: 1, alt: 2, super: 4, meta: 8 };
+        f.view._key(f.event('r'.charCodeAt(0), masks[gate] ?? 0));
+        assert.equal(
+            f.calls.some((call) => Array.isArray(call) && call[0] === 'tool'),
+            false,
+            gate,
+        );
+    }
+});
+
+test('legacy selection, undo, delete, escape and arrow shortcuts still work', () => {
+    for (const [symbol, state, expected] of [
+        ['KEY_a', 1, 'selectMonitor'],
+        ['KEY_z', 1, 'undo'],
+        ['KEY_z', 17, 'redo'],
+        ['KEY_Delete', 0, 'delete'],
+        ['KEY_Escape', 0, 'escape'],
+    ]) {
+        const f = fixture();
+        f.view._key(f.event(f.Clutter[symbol], state));
+        assert.ok(f.calls.includes(expected));
+    }
+    const f = fixture();
+    f.view._key(f.event(f.Clutter.KEY_Left, 16));
+    assert.deepEqual(f.calls.find(Array.isArray), ['nudge', -1, 0, true]);
 });

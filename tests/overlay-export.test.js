@@ -2,13 +2,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { cursorFor } from '../src/ui/cursorModel.js';
 
 // Load the class without GNOME imports; these tests exercise its actor protocol only.
 const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
     .replace(/^import [^;]*;\n/gm, '')
     .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
 const Overlay = vm.runInNewContext(source, {
-    Clutter: { CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 }, EVENT_STOP: 1, EVENT_PROPAGATE: 0 },
+    Clutter: {
+        CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 },
+        PickMode: { REACTIVE: 1 },
+        EVENT_STOP: 1,
+        EVENT_PROPAGATE: 0,
+    },
+    global: { stage: { get_actor_at_pos: () => null, get_event_actor: () => null } },
+    cursorFor,
     contains: () => true,
     physicalRect: (rect) => rect,
 });
@@ -16,6 +24,7 @@ const Overlay = vm.runInNewContext(source, {
 function actor(visible = true) {
     return {
         visible,
+        opacity: 255,
         hide() {
             this.visible = false;
         },
@@ -30,32 +39,47 @@ for (const guidesVisible of [true, false])
         const view = Object.create(Overlay.prototype);
         const marker = actor();
         const gradient = actor();
+        const annotationShadow = actor();
         Object.assign(view, {
             _shades: [actor(), actor(false)],
             _annotationDecorations: { actor: actor() },
             _draft: { actor: actor() },
             _guides: { actor: actor(guidesVisible) },
+            _frameRing: actor(),
             _frame: actor(),
             _handles: [actor()],
             _dimensions: actor(),
             _hint: actor(false),
             _error: actor(),
             _toolbar: { actor: actor() },
+            _tooltip: {
+                actor: actor(guidesVisible),
+                hideNow() {
+                    this.actor.hide();
+                    this.actor.opacity = 0;
+                    this.cancelled = true;
+                },
+            },
             _magnifier: { actor: actor() },
             _textEdit: { actor: actor() },
-            _annotations: { actor: Object.assign(actor(), { children: [marker, gradient] }), prepareExport() {} },
+            _annotations: {
+                actor: Object.assign(actor(), { children: [annotationShadow, marker, gradient] }),
+                prepareExport() {},
+            },
         });
         const hidden = [
             ...view._shades,
             view._annotationDecorations.actor,
             view._draft.actor,
             view._guides.actor,
+            view._frameRing,
             view._frame,
             ...view._handles,
             view._dimensions,
             view._hint,
             view._error,
             view._toolbar.actor,
+            view._tooltip.actor,
             view._magnifier.actor,
             view._textEdit.actor,
         ];
@@ -68,6 +92,7 @@ for (const guidesVisible of [true, false])
                     assert.equal(view._annotations.actor.visible, true);
                     assert.equal(marker.visible, true);
                     assert.equal(gradient.visible, true);
+                    assert.equal(annotationShadow.visible, true);
                     throw new Error('capture failed');
                 }),
             /capture failed/,
@@ -76,6 +101,8 @@ for (const guidesVisible of [true, false])
             hidden.map((item) => item.visible),
             before,
         );
+        assert.equal(view._tooltip.cancelled, true);
+        assert.equal(view._tooltip.actor.opacity, 255);
         assert.equal(marker.visible, true);
         assert.equal(gradient.visible, true);
         assert.equal(
@@ -83,6 +110,7 @@ for (const guidesVisible of [true, false])
                 assert.equal(view._guides.actor.visible, false);
                 assert.equal(marker.visible, true);
                 assert.equal(gradient.visible, true);
+                assert.equal(annotationShadow.visible, true);
                 return 42;
             }),
             42,
@@ -103,6 +131,7 @@ test('export allocates committed annotations before capture', () => {
         _shades: [],
         _annotationDecorations: { actor: actor() },
         _draft: { actor: actor() },
+        _frameRing: actor(),
         _frame: actor(),
         _handles: [],
         _dimensions: actor(),
@@ -110,6 +139,7 @@ test('export allocates committed annotations before capture', () => {
         _error: actor(),
         _guides: { actor: actor() },
         _toolbar: { actor: actor() },
+        _tooltip: { actor: actor(), hideNow() {} },
         _magnifier: { actor: actor() },
     });
     view.withExportContent(() => calls.push('capture'));
@@ -148,6 +178,7 @@ test('rectangle motion routes changing drafts through the draft layer without ca
         pointerMove(point) {
             this.draft = { id: 3, type: 'rectangle', x1: 1, y1: 1, x2: point.x, y2: point.y };
         },
+        hitTarget: () => ({ kind: 'canvas' }),
     };
     Object.assign(view, {
         editor,
@@ -158,6 +189,7 @@ test('rectangle motion routes changing drafts through the draft layer without ca
         _pointOf: (event) => event,
         _options: () => ({}),
         _isControl: () => false,
+        _controlAt: () => null,
         snapshot: {
             monitors: [editor.monitor],
             ensurePixelation() {
@@ -209,13 +241,14 @@ test('moving a pixelation refreshes actors without preparing pixels', () => {
         annotations: [annotation],
         selection,
         monitor: { ...selection, scale: 1 },
-        tool: null,
+        tool: 'select',
         style: {},
         selectedId: 1,
         draft: null,
         pointerMove(point) {
             annotation.x1 = point.x;
         },
+        hitTarget: () => ({ kind: 'annotation' }),
     };
     const view = Object.create(Overlay.prototype);
     Object.assign(view, {
@@ -227,6 +260,7 @@ test('moving a pixelation refreshes actors without preparing pixels', () => {
         _pointOf: (event) => event,
         _options: () => ({}),
         _isControl: () => false,
+        _controlAt: () => null,
         snapshot: {
             monitors: [editor.monitor],
             ensurePixelation() {

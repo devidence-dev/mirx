@@ -8,9 +8,27 @@ import { contains, handles, physicalRect } from '../core/geometry.js';
 import { textFont } from '../rendering/annotations.js';
 import { AlignmentGuides } from './alignmentGuides.js';
 import { AnnotationActors } from './annotationActors.js';
+import { cursorFor } from './cursorModel.js';
 import { decorationRect, DecorationActors } from './decorations.js';
 import { Magnifier } from './magnifier.js';
 import { Toolbar } from './toolbar.js';
+import { toolForKey } from './toolbarModel.js';
+import { Tooltip } from './tooltip.js';
+
+function cursorType(name) {
+    const cursors = Clutter.CursorType;
+    return {
+        pointer: cursors.POINTER,
+        move: cursors.MOVE,
+        crosshair: cursors.CROSSHAIR,
+        text: cursors.TEXT,
+        default: cursors.DEFAULT,
+        'ns-resize': cursors.NS_RESIZE ?? cursors.N_RESIZE,
+        'ew-resize': cursors.EW_RESIZE ?? cursors.E_RESIZE,
+        'nwse-resize': cursors.NWSE_RESIZE ?? cursors.NW_RESIZE,
+        'nesw-resize': cursors.NESW_RESIZE ?? cursors.NE_RESIZE,
+    }[name];
+}
 
 function arrowDelta(symbol) {
     switch (symbol) {
@@ -29,7 +47,7 @@ function arrowDelta(symbol) {
 
 /** Translates Shell events into editor actions, and presents the frozen session. */
 export class Overlay {
-    constructor({ snapshot, editor, onCancel, onExport, enterAction, perfLog = () => false }) {
+    constructor({ snapshot, editor, onCancel, onExport, enterAction, iconDir, perfLog = () => false }) {
         Object.assign(this, { snapshot, editor, onCancel, onExport, enterAction, perfLog });
         this._busy = false;
         this._dragging = false;
@@ -37,6 +55,7 @@ export class Overlay {
         this._textEdit = null;
         this._grab = null;
         this._lastClick = null;
+        this._control = null;
         const [x, y] = global.get_pointer();
         this._point = { x, y };
         const width = global.stage.width,
@@ -59,10 +78,14 @@ export class Overlay {
         this.actor.add_child(this._annotationDecorations.actor);
         this._guides = new AlignmentGuides(snapshot);
         this.actor.add_child(this._guides.actor);
+        // St draws box-shadow as a filled copy of the box, which would darken the whole selection,
+        // so the dark outer ring is its own 1 px bordered widget just outside the blue frame.
+        this._frameRing = new St.Widget({ style_class: 'mirx-frame-ring', visible: false });
+        this.actor.add_child(this._frameRing);
         this._frame = new St.Widget({ style_class: 'mirx-frame', visible: false });
         this.actor.add_child(this._frame);
         this._handles = [0, 1, 2, 3, 4, 5, 6, 7].map(
-            () => new St.Widget({ style_class: 'mirx-handle', width: 8, height: 8, visible: false }),
+            () => new St.Widget({ style_class: 'mirx-handle', width: 10, height: 10, visible: false }),
         );
         this._handles.forEach((handle) => {
             this.actor.add_child(handle);
@@ -85,7 +108,11 @@ export class Overlay {
             this.actor.grab_key_focus();
             this._refresh();
         };
+        this._tooltip = new Tooltip({ monitor: () => this.editor.monitor });
         this._toolbar = new Toolbar({
+            iconDir,
+            tooltip: this._tooltip,
+            primaryAction: () => this.enterAction(),
             onTool: (tool) => change(() => editor.setTool(tool)),
             onStyle: (style) => change(() => editor.setStyle(style)),
             onUndo: () => change(() => editor.undo()),
@@ -96,6 +123,7 @@ export class Overlay {
             },
         });
         this.actor.add_child(this._toolbar.actor);
+        this.actor.add_child(this._tooltip.actor);
         this._magnifier = new Magnifier(snapshot, width, height);
         this.actor.add_child(this._magnifier.actor);
         this.actor.connect('button-press-event', (_actor, event) => this._press(event));
@@ -140,6 +168,16 @@ export class Overlay {
         return this._toolbar.actor.contains(source) || this._textEdit?.actor.contains(source);
     }
 
+    _controlAt(source) {
+        if (this._textEdit?.actor.contains(source)) return 'text';
+        if (!this._toolbar.actor.contains(source)) return null;
+        for (let actor = source; actor && actor !== this._toolbar.actor; actor = actor.get_parent()) {
+            if (actor instanceof St.Button && actor.reactive && !actor.has_style_pseudo_class('insensitive'))
+                return 'button';
+        }
+        return 'toolbar';
+    }
+
     _press(event) {
         if (this._busy) return Clutter.EVENT_STOP;
         if (event.get_button() !== Clutter.BUTTON_PRIMARY || this._isControl(event)) return Clutter.EVENT_PROPAGATE;
@@ -169,6 +207,7 @@ export class Overlay {
     _release(event) {
         if (!this._dragging || event.get_button() !== Clutter.BUTTON_PRIMARY) return Clutter.EVENT_PROPAGATE;
         this._point = this._pointOf(event);
+        this._control = this._controlAt(global.stage.get_event_actor(event));
         this.editor.pointerUp(this._point, this._options(event));
         this._dragging = this._selectionDrag = false;
         this._refresh();
@@ -180,6 +219,7 @@ export class Overlay {
         const timed = this.perfLog();
         const start = timed ? GLib.get_monotonic_time() : 0;
         this._point = this._pointOf(event);
+        this._control = this._controlAt(global.stage.get_event_actor(event));
         if (!this._isControl(event) || this._dragging) this.editor.pointerMove(this._point, this._options(event));
         this._refresh();
         if (timed) console.log(`mirx-perf motion ms=${(GLib.get_monotonic_time() - start) / 1000}`);
@@ -187,10 +227,15 @@ export class Overlay {
     }
 
     _key(event) {
+        this._tooltip.hideNow();
         if (this._busy) return Clutter.EVENT_STOP;
         const start = this.perfLog?.() ? GLib.get_monotonic_time() : null;
         const symbol = event.get_key_symbol();
         const ctrl = Boolean(event.get_state() & Clutter.ModifierType.CONTROL_MASK);
+        const alt = Boolean(
+            event.get_state() &
+                (Clutter.ModifierType.MOD1_MASK | Clutter.ModifierType.SUPER_MASK | Clutter.ModifierType.META_MASK),
+        );
         const shift = this._options(event).shift;
         const enter = [Clutter.KEY_Return, Clutter.KEY_KP_Enter].includes(symbol);
         if (this._dragging && symbol !== Clutter.KEY_Escape) return Clutter.EVENT_STOP;
@@ -200,7 +245,7 @@ export class Overlay {
                 this.onCancel();
                 return Clutter.EVENT_STOP;
             }
-        } else if (!this._runShortcut(symbol, { ctrl, shift, enter }, start)) {
+        } else if (!this._runShortcut(symbol, { ctrl, alt, shift, enter }, start)) {
             if (global.focus_manager.navigate_from_event(event)) return Clutter.EVENT_STOP;
             return Clutter.EVENT_PROPAGATE;
         }
@@ -219,7 +264,7 @@ export class Overlay {
     }
 
     // Returns false when the key is not an editor shortcut, so the caller can fall back to focus navigation.
-    _runShortcut(symbol, { ctrl, shift, enter }, start) {
+    _runShortcut(symbol, { ctrl, alt, shift, enter }, start) {
         if (ctrl && this._runCtrlShortcut(symbol, shift, start)) return true;
         if (symbol === Clutter.KEY_Delete) {
             this.editor.deleteSelected();
@@ -230,9 +275,19 @@ export class Overlay {
             return true;
         }
         const delta = arrowDelta(symbol);
-        if (!delta) return false;
-        this.editor.nudge(...delta, shift);
-        return true;
+        if (delta) {
+            this.editor.nudge(...delta, shift);
+            return true;
+        }
+        if (!ctrl && !alt && this.editor.selection && !this._textEdit && !this._dragging && !this._busy) {
+            const tool = toolForKey(String.fromCodePoint(Clutter.keysym_to_unicode(symbol)));
+            if (tool !== undefined) {
+                this.editor.setTool(tool.id);
+                this.actor.grab_key_focus();
+                return true;
+            }
+        }
+        return false;
     }
 
     _runCtrlShortcut(symbol, shift, start) {
@@ -340,6 +395,9 @@ export class Overlay {
             this._frame.set_position(x, y);
             this._frame.set_size(width, height);
             this._frame.show();
+            this._frameRing.set_position(x - 1, y - 1);
+            this._frameRing.set_size(width + 2, height + 2);
+            this._frameRing.show();
         } else {
             this._shades[0].set_position(0, 0);
             this._shades[0].set_size(W, H);
@@ -348,11 +406,12 @@ export class Overlay {
                 shade.hide();
             });
             this._frame.hide();
+            this._frameRing.hide();
         }
         const selection = this.editor.selection;
         if (selection) {
             handles(selection).forEach(({ x, y }, i) => {
-                this._handles[i].set_position(x - 4, y - 4);
+                this._handles[i].set_position(x - 5, y - 5);
                 this._handles[i].show();
             });
         } else {
@@ -384,6 +443,8 @@ export class Overlay {
             this._hint.hide();
         } else {
             this._placedFor = null;
+            this._toolbar.actor.hide();
+            this._tooltip.hideNow();
             const m = this.snapshot.monitors.find((item) => contains(item, this._point)) ?? this.snapshot.monitors[0];
             this._hint.set_position(m.x + 20, m.y + 20);
         }
@@ -393,14 +454,21 @@ export class Overlay {
         const aidVisible =
             !this._busy &&
             !this._textEdit &&
-            (!this.editor.tool || this._selectionDrag) &&
+            (!this.editor.tool || this.editor.tool === 'select' || this._selectionDrag) &&
             (!selection || this._selectionDrag);
         this._magnifier.update(aidPoint, pointerMonitor, aidVisible);
         this._guides.update(aidPoint, pointerMonitor, aidVisible);
-        let cursor = Clutter.CursorType.DEFAULT;
-        if (this.editor.tool === 'text') cursor = Clutter.CursorType.TEXT;
-        else if (this.editor.tool || !selection) cursor = Clutter.CursorType.CROSSHAIR;
-        this.actor.set_cursor_type(cursor);
+        // Re-pick after placement and key changes, even if the pointer has not moved.
+        const source = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, this._point.x, this._point.y);
+        this._control = this._controlAt(source);
+        const cursor = cursorFor({
+            target: this.editor.hitTarget(this._point),
+            tool: this.editor.tool,
+            interaction: this.editor.interaction,
+            interactionHandle: this.editor.interactionHandle,
+            control: this._control,
+        });
+        this.actor.set_cursor_type(cursorType(cursor));
         this._updateDecorations();
         // Each repaint is a software render plus a GPU upload of the whole canvas, so the canvases
         // cover only what they draw and the committed layer repaints only when its content changes.
@@ -421,22 +489,27 @@ export class Overlay {
             this._annotationDecorations.actor,
             this._draft.actor,
             this._guides.actor,
+            this._frameRing,
             this._frame,
             ...this._handles,
             this._dimensions,
             this._hint,
             this._error,
             this._toolbar.actor,
+            this._tooltip.actor,
             this._magnifier.actor,
             this._textEdit?.actor,
         ].filter(Boolean);
         const visibility = actors.map((actor) => actor.visible);
+        const tooltipOpacity = this._tooltip.actor.opacity;
+        this._tooltip.hideNow();
         try {
             actors.forEach((actor) => {
                 actor.hide();
             });
             return callback();
         } finally {
+            this._tooltip.actor.opacity = tooltipOpacity;
             actors.forEach((actor, i) => {
                 if (visibility[i]) actor.show();
                 else actor.hide();
@@ -446,6 +519,7 @@ export class Overlay {
 
     setBusy(busy) {
         this._busy = busy;
+        if (busy) this._tooltip.hideNow();
         this._refresh();
     }
 
@@ -458,6 +532,7 @@ export class Overlay {
     }
 
     destroy() {
+        if (this._destroyed) return;
         this._destroyed = true;
         if (this._focusGroup) {
             global.focus_manager.remove_group(this.actor);
@@ -467,6 +542,8 @@ export class Overlay {
             Main.popModal(this._grab);
             this._grab = null;
         }
+        this._tooltip.destroy();
+        this._toolbar.destroy();
         this.actor.destroy();
         const parent = this._group?.get_parent();
         if (parent && (!this._previousSibling || this._previousSibling.get_parent() === parent))

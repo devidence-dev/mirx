@@ -53,7 +53,7 @@ When the toggle is on, a new arrow, rectangle, ellipse or numbered marker SHALL 
 - **THEN** White and Black stay flat, since they have no hue to sweep
 
 #### Scenario: Gradient follows the shape
-- **GIVEN** a gradient rectangle exists and no annotation tool is active
+- **GIVEN** a gradient rectangle exists and the Select and move tool is active
 - **WHEN** the user moves it or resizes it
 - **THEN** its gradient moves with it, or spans the new bounds, with the same start still at the top-left
 

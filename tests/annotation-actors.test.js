@@ -26,6 +26,7 @@ import {
 } from '../src/ui/shaders.js';
 import { Editor, markerNumbers } from '../src/core/editor.js';
 import { contains, markerRadius, physicalRect } from '../src/core/geometry.js';
+import { cursorFor } from '../src/ui/cursorModel.js';
 
 class Actor {
     constructor(properties = {}) {
@@ -155,6 +156,27 @@ class Effect {
         this.paints = (this.paints ?? 0) + 1;
     }
 }
+
+class Shadow {
+    constructor(source) {
+        this.source = source;
+        this.actor = new Actor({ reactive: false });
+        this.updates = [];
+    }
+    update(rect, scale) {
+        this.updates.push({ rect: { ...rect }, scale });
+    }
+    setVisible(visible) {
+        this.actor.visible = visible;
+    }
+    prepareExport() {
+        this.source.get_allocation_box();
+        this.prepared = true;
+    }
+    destroy() {
+        this.actor.destroy();
+    }
+}
 const source =
     readFileSync(new URL('../src/ui/annotationActors.js', import.meta.url), 'utf8')
         .replace(/^import [^;]*;\n/gm, '')
@@ -162,6 +184,7 @@ const source =
         .replace('export class AnnotationActors', 'class AnnotationActors') +
     '\nthis.AnnotationActors = AnnotationActors;';
 const AnnotationActors = vm.runInNewContext(source, {
+    AnnotationShadow: Shadow,
     Clutter: { Actor, Text: Actor, RotateAxis: { Z_AXIS: 2 }, ScalingFilter: { NEAREST: 0 } },
     St: {
         Widget: Actor,
@@ -219,13 +242,19 @@ test('mixed annotations retain model stacking order and a single selection clip'
     renderer.update(annotations, selection);
     assert.deepEqual(
         renderer.actor.children,
-        annotations.map((a) => renderer._entries.get(a.id).actor),
+        annotations.flatMap((a) => {
+            const { dropShadow, actor } = renderer._entries.get(a.id);
+            return [dropShadow.actor, actor];
+        }),
     );
     assert.deepEqual(plain(renderer.actor.clip), selection && [10, 20, 200, 100]);
     renderer.update([...annotations].reverse(), { ...selection, x: 25 });
     assert.deepEqual(
         renderer.actor.children,
-        [...annotations].reverse().map((a) => renderer._entries.get(a.id).actor),
+        [...annotations].reverse().flatMap((a) => {
+            const { dropShadow, actor } = renderer._entries.get(a.id);
+            return [dropShadow.actor, actor];
+        }),
     );
     assert.deepEqual(plain(renderer.actor.clip), [25, 20, 200, 100]);
 });
@@ -265,11 +294,49 @@ test('editing hides only the existing text actor and restores its updated conten
     renderer.update(annotations, selection, 1);
     const text = renderer._entries.get(1).actor;
     assert.equal(text.visible, false);
+    assert.equal(renderer._entries.get(1).dropShadow.actor.visible, false);
     assert.equal(renderer._entries.get(2).actor.visible, true);
     renderer.update([{ ...annotations[0], text: 'changed\ntext' }, annotations[1]], selection);
     assert.equal(renderer._entries.get(1).actor, text);
     assert.equal(text.visible, true);
+    assert.equal(renderer._entries.get(1).dropShadow.actor.visible, true);
     assert.equal(text.text, 'changed\ntext');
+});
+
+test('every annotation has its own silhouette shadow, reused through edits and removed with its source', () => {
+    const renderer = create({ scale: 4 / 3, content });
+    const annotations = ['rectangle', 'circle', 'arrow', 'pixelate', 'text', 'highlighter', 'marker'].map((type, i) =>
+        item(i + 1, type),
+    );
+    renderer.update(annotations, selection);
+    const shadows = annotations.map((annotation) => renderer._entries.get(annotation.id).dropShadow);
+    for (const annotation of annotations) {
+        const { actor, disc, dropShadow } = renderer._entries.get(annotation.id);
+        assert.equal(dropShadow.source, disc ?? actor);
+        assert.equal(dropShadow.updates[0].scale, 4 / 3);
+        assert.equal(dropShadow.actor.reactive, false);
+    }
+    renderer.update(annotations, selection);
+    assert.ok(shadows.every((shadow) => shadow.updates.length === 1));
+    const moved = annotations.map((annotation) => ({
+        ...annotation,
+        x1: annotation.x1 + 10,
+        x2: annotation.x2 + 10,
+        color: '#00ff00',
+    }));
+    renderer.update(moved, selection);
+    for (const [index, shadow] of shadows.entries()) {
+        assert.equal(renderer._entries.get(index + 1).dropShadow, shadow);
+        assert.equal(shadow.updates.length, 2);
+        const [before, after] = shadow.updates;
+        assert.equal(after.rect.x, before.rect.x + 10);
+        assert.equal(after.rect.width, before.rect.width);
+    }
+    renderer.prepareExport();
+    assert.ok(shadows.every((shadow) => shadow.prepared && shadow.actor.visible));
+    renderer.update([], selection);
+    assert.equal(renderer.actor.children.length, 0);
+    assert.ok(shadows.every((shadow) => shadow.actor.destroyed));
 });
 
 test('unchanged mixed committed annotations cause no actor writes or fallback repaint', () => {
@@ -325,7 +392,9 @@ test('rectangle pointer motions update only draft geometry and repaint no legacy
         .replace(/^import [^;]*;\n/gm, '')
         .replace('export class Overlay', 'class Overlay')}\nthis.Overlay = Overlay;`;
     const Overlay = vm.runInNewContext(overlaySource, {
-        Clutter: { CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 }, EVENT_STOP: 1 },
+        Clutter: { CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 }, PickMode: { REACTIVE: 1 }, EVENT_STOP: 1 },
+        global: { stage: { get_actor_at_pos: () => null, get_event_actor: () => null } },
+        cursorFor,
         contains,
         physicalRect,
     });
@@ -346,6 +415,7 @@ test('rectangle pointer motions update only draft geometry and repaint no legacy
         _pointOf: (event) => event,
         _options: () => ({}),
         _isControl: () => false,
+        _controlAt: () => null,
         snapshot: { monitors: editor.monitors },
         actor: { set_cursor_type() {} },
         _toolbar: { update() {}, place() {} },

@@ -84,14 +84,15 @@ A marker SHALL be a solid circle in the colour that was current when it was plac
 
 ### Requirement: Markers are edited like other annotations
 
-With no annotation tool active, the system SHALL let the user select a marker by clicking its circle, move it by dragging, change its colour and width while it is selected, and delete it with Delete. A selected marker SHALL be outlined by a blue ring just outside its circle, legible on light and dark content, and SHALL show no resize handles. Changing its width SHALL resize it around its centre.
+With the Select and move tool active, the system SHALL let the user select a marker by clicking its circle, move it by dragging, change its colour and width while it is selected, and delete it with Delete. A selected marker SHALL be outlined by a blue ring just outside its circle, legible on light and dark content, and SHALL show no resize handles. Changing its width SHALL resize it around its centre.
 
 #### Scenario: Select and move a marker
-- **GIVEN** no annotation tool is active and a marker exists
+- **GIVEN** the Select and move tool is active and a marker exists
 - **WHEN** the user clicks inside its circle and drags it
 - **THEN** the marker is selected, outlined by a blue ring, and moves with the pointer, keeping its number
 
 #### Scenario: Click beside a marker
+- **GIVEN** the Select and move tool is active
 - **WHEN** the user clicks a point outside every marker's circle
 - **THEN** no marker is selected
 

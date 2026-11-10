@@ -29,10 +29,10 @@ Install the package by following the README. Record `gnome-shell --version`, the
    - stay visible while creating a selection and while dragging each handle, and hide when the gesture ends, after Ctrl+A or a window click, when choosing a tool, editing text, or moving the selection from its interior;
    - with two monitors of different scale or offset, span only the monitor under the pointer, follow a drag onto the other monitor, and leave the selection limited to the starting monitor;
    - do not intercept clicks or drags on the toolbar, handles or the pointer position they cross.
-5. **Adjustments.** Check the dimensions and toolbar beside the selection. Try all eight handles, drag a handle across its opposite edge, drag the empty interior, and press the arrow keys and Shift+arrow keys. The selection must not leave the monitor or collapse to zero size. Selecting the full monitor keeps the toolbar inside it. Annotations retain their positions when adjusting the crop.
+5. **Adjustments.** Check the dimensions and toolbar beside the selection. Try all eight handles, drag a handle across its opposite edge, drag the empty interior (with nothing chosen it must do nothing; press V first to move the selection), and press the arrow keys and Shift+arrow keys. The selection must not leave the monitor or collapse to zero size. Selecting the full monitor keeps the toolbar inside it. Annotations retain their positions when adjusting the crop.
 6. **Tools.** Draw arrows in both directions, an unfilled rectangle, an ellipse, a circle with Shift, a translucent highlighter, and a pixelated area. Choosing blue and 6 px affects new annotations while preserving the style of existing ones. Also check the initial preference values in a new session.
-7. **Text.** Enter text with accented characters and multiple lines. Enter confirms without exporting; Shift+Enter adds a line; Esc discards the new text without closing the capture. In selection mode, double-click an existing text annotation to edit it; canceling preserves its previous content. Copying and pasting inside the editor affects the text.
-8. **Editing.** In selection mode, clicking overlapping annotations selects the topmost one. Move each type, resize rectangles, ellipses, highlighters, and pixelated areas, and move each endpoint of an arrow. Change the selected object's color and stroke width, delete it with Delete, and deselect with Esc. Moving a pixelated area reveals the original content at its previous position and pixelates the new area.
+7. **Text.** Enter text with accented characters and multiple lines. Enter confirms without exporting; Shift+Enter adds a line; Esc discards the new text without closing the capture. With the select/move tool (V), double-click an existing text annotation to edit it; canceling preserves its previous content. Copying and pasting inside the editor affects the text.
+8. **Editing.** With the select/move tool (V), clicking overlapping annotations selects the topmost one. Move each type, resize rectangles, ellipses, highlighters, and pixelated areas, and move each endpoint of an arrow. Change the selected object's color and stroke width, delete it with Delete, and deselect with Esc. Moving a pixelated area reveals the original content at its previous position and pixelates the new area.
 9. **History.** For creation, movement, resizing, styling, deletion, and text editing, Ctrl+Z reverts a complete gesture and Ctrl+Shift+Z restores it. After undoing, a new action clears the redo history.
 10. **Export.** Ctrl+C copies a PNG image that can be pasted into another application and displays a notification. Ctrl+S saves a PNG and then a JPG, using the preferences. Test Enter with each configured action; with no selection, it does nothing. Confirm that the capture closes only after a successful export.
 11. **Content and scaling.** Save a 400 × 300 unit selection on a monitor at 200% scaling and check for an 800 × 600 pixel image. Test a 100% monitor beside a 200% monitor. The result contains only the selection and its annotations, clipped at the edges; it excludes the pointer, toolbar, magnifier, alignment guides, dimensions, handles, and dimming overlay.
@@ -42,18 +42,18 @@ Install the package by following the README. Record `gnome-shell --version`, the
 13. **Preferences and lifecycle.** Change the shortcut to Super+Shift+S: it works and the previous shortcut no longer opens the capture. Change the color to yellow and the stroke width to 5 px, then draw in a new session. Change the folder to `~/Documents/Screenshots`. Disable and re-enable the extension, lock and unlock the session, and disconnect a monitor while the editor is open: no actors, late captures, trapped focus, or lingering shortcuts remain. Test opening it again after each case.
 14. **Numbered markers** (pending, graphical checks). Select the "Numbered marker" tool and check that:
 
-- the toolbar shows the ① button; if the glyph does not render, record it, since the fallback is `#`;
+- the toolbar shows the numbered marker icon;
 - each click inside the selection places one circle centred on the click point, numbered 1, 2, 3 in click order, and the tool stays active; a click outside the selection places nothing, and pressing a selection handle still resizes the selection without placing a marker;
 - deleting marker 2 of markers 1, 2 and 3 with Delete leaves 1 and 2, with the former 3 now showing 2, and the next click takes 3; Ctrl+Z after a placement removes only that marker; Ctrl+Z after the deletion restores 1, 2 and 3, and Ctrl+Shift+Z gives 1 and 2 again;
 - over busy content, the number is white with a soft shadow on every colour and black on White, and it is legible;
 - a selected marker shows a blue ring, legible on light and dark content (pending);
 - one, two and three digit numbers (for example 1, 12 and 123, after placing at least 100 markers) fit inside their circles at width 3 px and at width 30 px;
-- a click on a marker selects it, a drag moves it and keeps its number, a selected marker shows no resize handles, a width change resizes it around its centre, a colour change recomputes the number contrast, and Ctrl+Z reverts each of these;
+- with select/move (V) chosen, a click on a marker selects it; with nothing chosen it does nothing; a drag moves it and keeps its number, a selected marker shows no resize handles, a width change resizes it around its centre, a colour change recomputes the number contrast, and Ctrl+Z reverts each of these;
 - at 100%, 200% and approximately 133% scaling, the circle edges are smooth, the number is centred and not blurred, and the exported marker matches the marker on screen;
 - on two monitors with different scaling, a marker placed on the second monitor stays within the selection and is exported at that monitor's resolution;
 - the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) images contain the markers with their current numbers, and a marker crossing the selection edge is cropped; compare the images with the screen.
 
-15. **Gradient annotations** (pending, graphical checks). The gradient toggle (◐, accessible name "Gradient") is at the end of the style row. Check that:
+15. **Gradient annotations** (pending, graphical checks). The gradient toggle (accessible name "Gradient") is at the end of the style row. Check that:
 
 - it is off when the overlay opens, shows whether it is on or off, and is off again in a new session after it was left on;
 - highlighter, text and pixelated areas look exactly as they do with the toggle off, whatever its state;
@@ -67,6 +67,12 @@ Install the package by following the README. Record `gnome-shell --version`, the
 - the PNG (Ctrl+S with format PNG), JPG (Ctrl+S with format JPG) and clipboard (Ctrl+C) exports match the screen pixel for pixel, including a gradient arrow cropped by the selection edge; zoom to the pixel level on both to compare;
 - for each palette colour (Red, Yellow, Green, Blue, Violet, White and Black), the number of a numbered marker contrasts with both its lightest (top-left) and deepest (bottom-right) circle shade, and the number stays one solid colour;
 - with `perf-log` enabled, record the `mirx-perf motion ms=` values in the GNOME Shell log while moving the pointer over several gradient rectangles, and compare them with the same rectangles drawn flat.
+
+## Annotation shadows (pending; requires GNOME Shell 50 / Wayland)
+
+- Draw arrows, rectangles, ellipses, numbered markers, text, highlighters and pixelated regions over light, dark and busy content. Check each has a subtle 25% black shadow, offset 1 logical px right and 2 down with a 2 logical px blur. The shadow follows the visible alpha, including glyphs and strokes, rather than the bounding box; large hollow outlines stay hollow and highlighter transparency remains unchanged. Check the marker disc casts the new shadow while its number retains its existing appearance.
+- Move, resize, recolour, undo, redo and delete annotations; shadows follow their content and stacking order without stale pixels, changed hit areas or separate history entries. Edit committed text and confirm its shadow hides with it and returns on commit. Close and reopen the capture and check no old shadow remains.
+- At 100%, approximately 133% and 200%, check shadows remain aligned and have the same logical size. Compare preview with PNG, JPG and clipboard exports, including shadows crossing the selection edge: the shadow is clipped to the selection, while toolbar, tooltip, frame and handles remain absent.
 
 ## Top bar icon (pending; not run)
 
@@ -90,3 +96,45 @@ journalctl --user -b -f -o cat /usr/bin/gnome-shell
 ```
 
 For each check, record the result, exact version, monitor configuration, and any error or screenshot evidence if it fails. Do not mark the suite as passed based only on the Node results.
+
+## Toolbar, tooltips and hotkeys (pending; requires GNOME Shell 50 / Wayland)
+
+- Check both rows, group spacing and dividers, 36 px buttons, 28 px swatches, accessible names, focus, hover, pressed, checked and disabled states. Check the four-way select/move icon and all other icons for clarity and consistent weight.
+- Check the glass blur over the frozen screenshot, rounded corners, border and shadow over light and dark content. If the blur or corners fail, apply the mitigation order in the design and record the outcome. Check solid fallback legibility if selected.
+- Verify Copy or Save is suggested according to the Enter setting, updates after changing it, and Cancel closes without export. At 100%, 200%, approximately 133%, large text and on a small monitor check crispness, unclipped labels and fit.
+- Hover and focus controls: tooltips show the correct name and shortcut after 300 ms, fade, flip and stay on the monitor. A quick pass, click, key press, hiding, export and closing cancel them; reopening leaves no old tooltip or timer.
+- With a selection, test V, A, R, E, N, H, P and T in both cases, including Shift and Caps Lock. Confirm no tool change without a selection, during a drag or export, while editing text, or with Ctrl, Alt or Super. Verify Ctrl+A/C/S/Z, Ctrl+Shift+Z, Enter, Escape, Delete and arrows retain their actions.
+- Check the toolbar after review: swatches are perfect circles, Copy and Save are icon buttons (theme icons, accent fill on the Enter action, tooltips `Copy (Ctrl+C, Enter)` and `Save (Ctrl+S)`), no tool is highlighted when the capture opens, V or a click highlights select/move, choosing Arrow unchecks it, and with no tool highlighted the editor is idle: dragging inside the selection does nothing and annotations cannot be selected.
+- Export with a tooltip visible and inspect the image for absence of the toolbar and tooltip; also check recovery after an export failure.
+
+## Frame, handles and cursors (pending; requires GNOME Shell 50 / Wayland)
+
+- On light and dark content at 100%, approximately 133% and 200%, inspect the 2 px blue frame and dark ring, and the centred 10 px round white handles with blue borders and shadows. Check a full-monitor selection and selected annotation handles.
+- Grab each handle near the edge of its 16 px hit area, including overlapping handles on a tiny selection; confirm the nearest handle and cursor agree.
+- Check pointer over controls, default over toolbar background and outside a selection, crosshair before selection and while drawing, text cursor for text and editing, default arrow inside the selection and over annotations while idle (nothing chosen) with a drag there doing nothing and the eight handles still resizing, move cursor inside the selection and over annotations once select/move (V or click) is chosen, all eight directional resize cursors and move on arrow endpoints. Confirm root cursor appears over toolbar children and cursor theme supports bidirectional names.
+- Drag selection, annotations, drawing and each resize handle across toolbar and other regions; the gesture cursor remains fixed until release, then follows the pointer. Inspect exports for absence of frame, ring and handles.
+
+## Capture toolbar implementation checks (2026-11-10)
+
+Automated validation passed: `npm test` (193 tests, no skips), `npm run lint`, `npm run check` (including strict schema validation), `npm run pack`, and `openspec validate refine-capture-toolbar --strict`. The generated archive contains the 14 expected toolbar icons, runtime sources and no compiled schema, tests or tooling.
+
+The toolbar icons were rendered from their SVG files and visually inspected at 16 px and 72 px. This checks their shapes and weight, independently of the pending GNOME presentation checks above.
+
+New presentation APIs were checked against the supplied GNOME Shell 50 GIR files:
+
+| API                                           | Declaration                         |
+| --------------------------------------------- | ----------------------------------- |
+| Actor cursor and bidirectional resize values  | `.gir/Clutter-18.gir:1652`, `:6369` |
+| Transformed extents returning `Graphene.Rect` | `.gir/Clutter-18.gir:994`           |
+| Picking the actor under a stationary pointer  | `.gir/Clutter-18.gir:20555`         |
+| Event actor lookup                            | `.gir/Clutter-18.gir:20590`         |
+| Keysym conversion                             | `.gir/Clutter-18.gir:24035`         |
+| Hover tracking and insensitive state          | `.gir/St-18.gir:4101`, `:3934`      |
+| Theme context and scale factor                | `.gir/St-18.gir:3069`, `:3157`      |
+| Blur radius and background mode               | `.gir/Shell-18.gir:529`, `:542`     |
+
+The supplied GIR set has no GLib declarations. The tooltip uses the [binding version of `timeout_add`](https://docs.gtk.org/glib/func.timeout_add.html), returning `SOURCE_REMOVE` after its first callback. [`timeout_add_once`](https://docs.gtk.org/glib/func.timeout_add_once.html) is not available to language bindings.
+
+The host lacks `/usr/bin/glslangValidator`; all six shaders passed `npm run glsl` in a temporary Docker container with the repository mounted read-only. No shader code changed for annotation shadows.
+
+Annotation-shadow validation on 2026-11-10: `npm test` passes 205 tests without skips; lint, check (including strict schema validation), pack and strict OpenSpec validation pass. Both shadow runtime modules are included in the zip. Tests cover padding, physical alignment at 100/133/200%, fractional-scale blur, silhouette sources, stacking, unchanged refreshes, movement, visibility while editing, removal and export retention. New APIs were checked in `.gir/Clutter-18.gir:5140` (Clone/source), `:5772` (ColorizeEffect/tint) and `.gir/Shell-18.gir:472` (BlurEffect/ACTOR). These checks do not establish graphical fidelity; the annotation-shadow GNOME and export checks above remain pending.

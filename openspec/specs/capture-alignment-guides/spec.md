@@ -36,7 +36,7 @@ The system SHALL automatically show the guides in the same states as the magnifi
 
 #### Scenario: Annotate or move an existing selection
 - **GIVEN** a selection exists
-- **WHEN** the user chooses an annotation tool, edits text, or moves the selection from its interior
+- **WHEN** the user chooses an annotation tool or Select and move, edits text, or moves the selection from its interior with Select and move
 - **THEN** the guides remain hidden
 
 #### Scenario: No monitor or capture session closed
