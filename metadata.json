@@ -1,0 +1,7 @@
+{
+  "uuid": "mirx@mirx.local",
+  "name": "mirx",
+  "description": "Capturas de pantalla con anotaciones",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.mirx"
+}
