@@ -63,7 +63,8 @@ export function shaderPairs(exported, hooks) {
 function sourceFiles(dir) {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
         const path = join(dir, entry.name);
-        return entry.isDirectory() ? sourceFiles(path) : path.endsWith('.js') ? [path] : [];
+        if (entry.isDirectory()) return sourceFiles(path);
+        return path.endsWith('.js') ? [path] : [];
     });
 }
 
@@ -77,7 +78,7 @@ function main() {
         for (const { name, hook, source } of pairs) {
             const file = join(dir, `${name}.frag`);
             writeFileSync(file, source);
-            const result = spawnSync('glslangValidator', ['-S', 'frag', file], { encoding: 'utf8' });
+            const result = spawnSync('/usr/bin/glslangValidator', ['-S', 'frag', file], { encoding: 'utf8' });
             if (result.error?.code === 'ENOENT') {
                 console.error('glslangValidator not found. Install it with: sudo apt-get install glslang-tools');
                 process.exit(1);

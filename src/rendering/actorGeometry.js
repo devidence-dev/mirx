@@ -117,7 +117,7 @@ export function markerLabel(radius, digits) {
 function parseHex(hex) {
     let digits = hex.replace('#', '');
     if (digits.length === 3) digits = [...digits].map((c) => c + c).join('');
-    return [0, 2, 4].map((i) => parseInt(digits.slice(i, i + 2), 16));
+    return [0, 2, 4].map((i) => Number.parseInt(digits.slice(i, i + 2), 16));
 }
 
 // White text everywhere (the number carries a soft shadow), black only on White and near-white; a deliberate trade-off over WCAG ratios.

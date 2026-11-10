@@ -171,6 +171,34 @@ test('drawing, moving, resizing, styling and deletion are undoable', () => {
     draw(e, 'arrow');
     assert.equal(e.redo(), false);
 });
+test('annotation move and resize keep independent originals without structuredClone', () => {
+    const nativeClone = globalThis.structuredClone;
+    try {
+        globalThis.structuredClone = undefined;
+        const e = editor();
+        selection(e);
+        draw(e, 'rectangle');
+        const original = { ...e.annotations[0] };
+        e.pointerDown({ x: 140, y: 80 });
+        e.pointerMove({ x: 150, y: 90 });
+        e.pointerUp({ x: 160, y: 100 });
+        assert.equal(e.annotations[0].x1, 100);
+        assert.equal(e.annotations[0].y1, 100);
+        assert.equal(e.undo(), true);
+        assert.deepEqual(e.annotations[0], original);
+        e.pointerDown({ x: 80, y: 80 });
+        e.pointerMove({ x: 60, y: 50 });
+        e.pointerUp({ x: 50, y: 40 });
+        assert.equal(e.annotations[0].x1, 50);
+        assert.equal(e.annotations[0].y1, 40);
+        assert.equal(e.annotations[0].x2, original.x2);
+        assert.equal(e.annotations[0].y2, original.y2);
+        assert.equal(e.undo(), true);
+        assert.deepEqual(e.annotations[0], original);
+    } finally {
+        globalThis.structuredClone = nativeClone;
+    }
+});
 test('arrow endpoints, circle shift, text, escape', () => {
     const e = editor();
     selection(e);

@@ -11,7 +11,11 @@ import {
 } from './geometry.js';
 import { CommandHistory } from './history.js';
 
-const clone = (value) => JSON.parse(JSON.stringify(value));
+const cloneAnnotation = (annotation) => {
+    if (typeof structuredClone === 'function') return structuredClone(annotation);
+    // Annotations contain only primitive fields, so a spread also works in runtimes without structuredClone.
+    return { ...annotation };
+};
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const startOf = (annotation) => ({ x: annotation.x1, y: annotation.y1 });
 const endOf = (annotation) => ({ x: annotation.x2, y: annotation.y2 });
@@ -270,7 +274,7 @@ export class Editor {
                     kind: 'annotation-resize',
                     handle,
                     start: point,
-                    original: clone(selected),
+                    original: cloneAnnotation(selected),
                     before: this._snapshot(),
                 };
                 return null;
@@ -291,7 +295,12 @@ export class Editor {
         if (hit) {
             this.selectedId = hit.id;
             if (hit.type === 'text' && clickCount >= 2) return { editText: hit.id };
-            this._gesture = { kind: 'annotation-move', start: point, original: clone(hit), before: this._snapshot() };
+            this._gesture = {
+                kind: 'annotation-move',
+                start: point,
+                original: cloneAnnotation(hit),
+                before: this._snapshot(),
+            };
             return null;
         }
         this.selectedId = null;

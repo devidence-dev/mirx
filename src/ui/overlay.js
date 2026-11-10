@@ -397,13 +397,10 @@ export class Overlay {
             (!selection || this._selectionDrag);
         this._magnifier.update(aidPoint, pointerMonitor, aidVisible);
         this._guides.update(aidPoint, pointerMonitor, aidVisible);
-        this.actor.set_cursor_type(
-            this.editor.tool === 'text'
-                ? Clutter.CursorType.TEXT
-                : this.editor.tool || !selection
-                  ? Clutter.CursorType.CROSSHAIR
-                  : Clutter.CursorType.DEFAULT,
-        );
+        let cursor = Clutter.CursorType.DEFAULT;
+        if (this.editor.tool === 'text') cursor = Clutter.CursorType.TEXT;
+        else if (this.editor.tool || !selection) cursor = Clutter.CursorType.CROSSHAIR;
+        this.actor.set_cursor_type(cursor);
         this._updateDecorations();
         // Each repaint is a software render plus a GPU upload of the whole canvas, so the canvases
         // cover only what they draw and the committed layer repaints only when its content changes.
