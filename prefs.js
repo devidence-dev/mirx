@@ -100,6 +100,15 @@ export default class MirxPreferences extends ExtensionPreferences {
         });
         general.add(folder);
 
+        const panelIcon = new Adw.SwitchRow({ title: 'Show icon in top bar' });
+        panelIcon.active = settings.get_boolean('show-panel-icon');
+        panelIcon.connect('notify::active', () => settings.set_boolean('show-panel-icon', panelIcon.active));
+        watch('changed::show-panel-icon', () => {
+            const visible = settings.get_boolean('show-panel-icon');
+            if (panelIcon.active !== visible) panelIcon.active = visible;
+        });
+        general.add(panelIcon);
+
         const appearance = new Adw.PreferencesGroup({ title: 'Annotations' });
         page.add(appearance);
         const color = new Adw.EntryRow({ title: 'Default color (hex, for example #ff0000)' });

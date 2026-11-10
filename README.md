@@ -1,3 +1,5 @@
+<p align="center"><img src="icons/mirx.svg" width="128" alt="mirx logo"></p>
+
 # 📸 mirx
 
 Screenshot and annotate on GNOME Shell: grab a window, an area or a monitor, mark it up, then copy or save. Everything stays on your machine.
@@ -64,7 +66,7 @@ Updating works the same way: install the new package, then log out and in.
 
 ## 🖱️ Usage
 
-Press **Alt+Shift+X**. The screen freezes. Hover to preview what a click would pick (a window, or the whole monitor where there is no window), then drag, click or press Ctrl+A. Annotate, then copy or save.
+Press **Alt+Shift+X**, or choose **Take screenshot** from the top bar icon menu (left or right click; the item shows your current shortcut). You can hide the icon in Preferences; the shortcut still works. The screen freezes. Hover to preview what a click would pick (a window, or the whole monitor where there is no window), then drag, click or press Ctrl+A. Annotate, then copy or save.
 
 Annotations keep their screen position when you adjust the selection.
 
@@ -87,16 +89,17 @@ Mouse: drag the eight handles to resize the selection, or drag its empty interio
 
 ## ⚙️ Preferences
 
-Open with `gnome-extensions prefs mirx@devidence.dev`.
+Choose **Preferences** from the top bar icon menu, or open with `gnome-extensions prefs mirx@devidence.dev`. The menu shows the keyboard shortcut next to **Take screenshot** and updates it when you change it.
 
-| Setting           | Default         | Notes                                           |
-| ----------------- | --------------- | ----------------------------------------------- |
-| Keyboard shortcut | `Alt+Shift+X`   | Needs Ctrl, Alt or Super                        |
-| Enter action      | Copy            | Copy or Save                                    |
-| Image format      | PNG             | PNG or JPG                                      |
-| Capture folder    | `~/screenshots` | Must start with `/` or `~/`. Created if missing |
-| Default colour    | `#ff0000`       | Hex, six digits                                 |
-| Default width     | 3 px            | 1-30                                            |
+| Setting              | Default         | Notes                                           |
+| -------------------- | --------------- | ----------------------------------------------- |
+| Keyboard shortcut    | `Alt+Shift+X`   | Needs Ctrl, Alt or Super                        |
+| Enter action         | Copy            | Copy or Save                                    |
+| Image format         | PNG             | PNG or JPG                                      |
+| Capture folder       | `~/screenshots` | Must start with `/` or `~/`. Created if missing |
+| Show icon in top bar | On              | Show or hide the top bar icon                   |
+| Default colour       | `#ff0000`       | Hex, six digits                                 |
+| Default width        | 3 px            | 1-30                                            |
 
 File names carry the capture date and time. If a name exists, a suffix is added instead of overwriting. A save error keeps your session open so you can retry.
 

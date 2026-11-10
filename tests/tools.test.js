@@ -76,7 +76,7 @@ test('packaging ignores executables in the inherited PATH', (t) => {
     const { env, marker } = untrustedPath(t);
     const dir = mkdtempSync(join(tmpdir(), 'mirx-pack-path-'));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
-    for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'src', 'schemas']) {
+    for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'src', 'schemas', 'icons']) {
         cpSync(name, join(dir, name), { recursive: true });
     }
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/pack.js', import.meta.url))], {

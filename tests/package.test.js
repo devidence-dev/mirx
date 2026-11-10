@@ -51,6 +51,7 @@ test('zip holds only runtime files and no compiled schema', (t) => {
         'prefs.js',
         'metadata.json',
         'stylesheet.css',
+        'icons/mirx-symbolic.svg',
         'schemas/org.gnome.shell.extensions.mirx.gschema.xml',
         ...sourceFiles('src'),
     ];

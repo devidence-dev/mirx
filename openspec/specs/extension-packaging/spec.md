@@ -62,11 +62,16 @@ The repository SHALL contain a `LICENSE` file with the full unmodified text of t
 
 ### Requirement: The installable zip contains only runtime files
 
-The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, the schema XML under `schemas/` and the runtime sources under `src/`. It SHALL NOT contain `schemas/gschemas.compiled`, tests, scripts, `node_modules`, `dist`, tooling configuration or `openspec`. A `LICENSE` file SHALL NOT be required inside the zip.
+The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, the schema XML under `schemas/`, the runtime sources under `src/` and the top bar icon `icons/mirx-symbolic.svg`. It SHALL NOT contain `schemas/gschemas.compiled`, the colour logo `icons/mirx.svg`, any other file under `icons/`, tests, scripts, `node_modules`, `dist`, tooling configuration or `openspec`. A `LICENSE` file SHALL NOT be required inside the zip.
 
 #### Scenario: Runtime files are present
 - **WHEN** the zip is listed
-- **THEN** it includes `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, `schemas/org.gnome.shell.extensions.mirx.gschema.xml` and every file under `src/`
+- **THEN** it includes `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, `schemas/org.gnome.shell.extensions.mirx.gschema.xml`, `icons/mirx-symbolic.svg` and every file under `src/`
+
+#### Scenario: Only the symbolic icon is packaged
+- **WHEN** the zip is listed
+- **THEN** `icons/mirx-symbolic.svg` is the only entry under `icons/`
+- **AND** no entry is `icons/mirx.svg` or `icons/README.txt`
 
 #### Scenario: No compiled schema
 - **WHEN** the zip is listed
@@ -87,6 +92,11 @@ The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.c
 - **WHEN** it is installed with `gnome-extensions install`
 - **THEN** the installed extension directory contains `schemas/gschemas.compiled` and preferences load
 
+#### Scenario: Missing icon fails the pack
+- **GIVEN** `icons/mirx-symbolic.svg` is missing
+- **WHEN** `npm run pack` runs
+- **THEN** it fails naming the missing file and writes no zip
+
 ### Requirement: User settings survive the UUID change
 
 The GSettings schema id SHALL remain `org.gnome.shell.extensions.mirx` and its path SHALL remain unchanged, so values stored under that path are read by the extension under the new UUID.
@@ -104,3 +114,20 @@ The GSettings schema id SHALL remain `org.gnome.shell.extensions.mirx` and its p
 - **GIVEN** both `mirx@mirx.local` and `mirx@devidence.dev` are installed
 - **WHEN** both are enabled
 - **THEN** they would register the same keybinding and schema, so the README tells the user to uninstall the old UUID before installing the new one
+
+### Requirement: The README shows the colour logo
+
+The repository SHALL keep the colour logo at `icons/mirx.svg`, and the top of `README.md` SHALL show it, centred, before the badges. The designer's notes file `icons/README.txt` SHALL NOT remain in the repository.
+
+#### Scenario: README starts with the logo
+- **WHEN** `README.md` is read
+- **THEN** its first element is an image of `icons/mirx.svg` with alt text "mirx logo"
+- **AND** the referenced file exists
+
+#### Scenario: Logo is repository-only
+- **WHEN** the repository is searched for references to `icons/mirx.svg` in shipped files
+- **THEN** only `README.md` refers to it
+
+#### Scenario: Notes file is gone
+- **WHEN** the `icons/` folder is listed
+- **THEN** it holds `mirx.svg` and `mirx-symbolic.svg` and no `README.txt`
