@@ -206,3 +206,34 @@ test('no tool is highlighted on open; select and every tool highlight by editor.
     fresh.update({ ...editor, tool: null });
     assert.deepEqual(checked(fresh), []);
 });
+
+test('size controls follow target and show selected width while gradient remains shared', () => {
+    const { toolbar } = make();
+    const editor = {
+        annotations: [],
+        selectedId: null,
+        tool: null,
+        sizeTarget: null,
+        fallbackWidth: 6,
+        style: { color: '#0088ff', width: 6, gradient: true },
+    };
+    toolbar.update(editor);
+    assert.equal(toolbar._widthLabel.text, '6 px');
+    assert.equal(toolbar._decreaseWidth.reactive, false);
+    assert.equal(toolbar._increaseWidth.can_focus, false);
+    assert.ok(toolbar._decreaseWidth.pseudo.has('disabled'));
+    assert.ok(toolbar._gradient.pseudo.has('checked'));
+    editor.tool = 'marker';
+    editor.sizeTarget = 'marker';
+    editor.style.width = 5;
+    toolbar.update(editor);
+    assert.equal(toolbar._widthLabel.text, '5 px');
+    assert.equal(toolbar._increaseWidth.reactive, true);
+    editor.tool = 'select';
+    editor.selectedId = 1;
+    editor.annotations = [{ id: 1, width: 9, color: '#ff0000' }];
+    toolbar.update(editor);
+    assert.equal(toolbar._widthLabel.text, '9 px');
+    assert.ok(toolbar._colors.get('#ff0000').pseudo.has('checked'));
+    assert.ok(toolbar._gradient.pseudo.has('checked'));
+});

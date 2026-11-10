@@ -8,6 +8,7 @@ import { formatAccelerator } from './src/core/accelerator.js';
 import { Editor } from './src/core/editor.js';
 import { CaptureSession } from './src/application/captureSession.js';
 import { PanelIndicatorController } from './src/application/panelIndicator.js';
+import { readAppearance, writeAppearance } from './src/platform/appearanceSettings.js';
 import { ScreenCapture } from './src/platform/capture.js';
 import { GpuImageOutput } from './src/platform/gpuExport.js';
 import { Overlay } from './src/ui/overlay.js';
@@ -29,12 +30,13 @@ export default class MirxExtension extends Extension {
                 }),
             output: new GpuImageOutput({ notify: (title, body) => Main.notify(title, body) }),
             settings: () => ({
-                color: this._settings.get_string('default-color'),
-                width: this._settings.get_int('default-width'),
+                ...readAppearance(this._settings),
                 folder: this._settings.get_string('folder'),
                 format: this._settings.get_string('format'),
                 enterAction: this._settings.get_string('enter-action'),
             }),
+            writePreferences: (patch) =>
+                writeAppearance(this._settings, (type, value) => new GLib.Variant(type, value), patch),
             notifyError: (title, body) => Main.notifyError(title, body),
         });
         this._panelController = new PanelIndicatorController({

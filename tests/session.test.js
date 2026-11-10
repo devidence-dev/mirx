@@ -24,6 +24,7 @@ function fixture() {
     const calls = [];
     let config = { color: '#ff0000', width: 3, enterAction: 'copy', folder: '/old' };
     let runOutput = () => Promise.resolve();
+    let writer = () => {};
     const session = new CaptureSession({
         capture: {
             capture() {
@@ -70,6 +71,7 @@ function fixture() {
             },
         },
         settings: () => config,
+        writePreferences: (patch) => writer(patch),
         notifyError: (...args) => notifications.push(args),
     });
     return {
@@ -80,6 +82,9 @@ function fixture() {
         calls,
         setConfig(value) {
             config = value;
+        },
+        setWriter(value) {
+            writer = value;
         },
         setOutput(value) {
             runOutput = value;
@@ -311,4 +316,89 @@ test('export forwards the completion callback to the output port', async () => {
     assert.equal(f.calls[0].args[4].onComplete, onComplete);
     f.calls[0].args[4].onComplete();
     assert.equal(completed, true);
+});
+
+test('appearance changes persist immediately and stale callbacks cannot write', async () => {
+    const f = fixture();
+    const stored = { color: '#ff0000', width: 3, gradient: false, toolWidths: {} };
+    const writes = [];
+    f.setConfig(stored);
+    f.setWriter((patch) => {
+        writes.push(patch);
+        if (patch.color) stored.color = patch.color;
+        if (patch.gradient !== undefined) stored.gradient = patch.gradient;
+        if (patch.toolWidth) stored.toolWidths[patch.toolWidth.tool] = patch.toolWidth.width;
+    });
+    for (const [index, action] of ['cancel', 'copy', 'save'].entries()) {
+        const view = await f.open();
+        assert.equal(view.editor.annotations.length, 0);
+        assert.equal(view.editor.selection, null);
+        const count = writes.length;
+        view.editor.setTool('arrow');
+        view.editor.setTool('marker');
+        assert.equal(writes.length, count);
+        view.editor.setStyle({
+            color: ['#0088ff', '#ffcc00', '#0088ff'][index],
+            gradient: index !== 1,
+            width: index + 5,
+        });
+        if (action === 'cancel') view.onCancel();
+        else {
+            view.editor.selectMonitor({ x: 10, y: 10 });
+            await view.onExport(action);
+        }
+        const afterClose = writes.length;
+        view.editor.setStyle({ color: '#ffffff' });
+        assert.equal(writes.length, afterClose);
+    }
+    stored.color = '#ffcc00';
+    const current = await f.open();
+    assert.equal(current.editor.style.color, '#ffcc00');
+    assert.equal(current.editor.style.gradient, true);
+    current.editor.setTool('marker');
+    assert.equal(current.editor.style.width, 7);
+    f.session.destroy();
+    current.editor.setStyle({ width: 6 });
+    assert.equal(writes.at(-1).toolWidth.width, 7);
+});
+
+test('failed preference writes report once without preventing editing or export', async () => {
+    const f = fixture();
+    f.setWriter(() => {
+        throw new Error('read only');
+    });
+    const view = await f.open();
+    view.editor.setTool('marker');
+    view.editor.setStyle({ width: 5 });
+    view.editor.setStyle({ color: '#0088ff' });
+    assert.equal(view.editor.style.width, 5);
+    assert.deepEqual(f.notifications, [['Could not save annotation preferences', 'read only']]);
+    view.editor.selectMonitor({ x: 10, y: 10 });
+    await view.onExport('copy');
+    const next = await f.open();
+    next.editor.setTool('marker');
+    assert.equal(next.editor.style.width, 3);
+    assert.equal(next.editor.style.color, '#ff0000');
+});
+
+test('failed view opening invalidates retained preference callback', async () => {
+    let editor;
+    const writes = [];
+    const session = new CaptureSession({
+        capture: { capture: async () => snapshot },
+        createEditor: (options) => (editor = new Editor(options)),
+        createView: () => ({
+            open() {
+                throw new Error('failed');
+            },
+            destroy() {},
+        }),
+        settings: () => ({}),
+        output: {},
+        writePreferences: (patch) => writes.push(patch),
+        notifyError: () => {},
+    });
+    await session.open();
+    editor.setStyle({ color: '#0088ff' });
+    assert.deepEqual(writes, []);
 });

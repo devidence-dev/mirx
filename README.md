@@ -92,15 +92,17 @@ Mouse: a new capture has no tool chosen (nothing highlighted). In that idle stat
 
 Choose **Preferences** from the top bar icon menu, or open with `gnome-extensions prefs mirx@devidence.dev`. The menu shows the keyboard shortcut next to **Take screenshot** and updates it when you change it.
 
-| Setting              | Default         | Notes                                           |
-| -------------------- | --------------- | ----------------------------------------------- |
-| Keyboard shortcut    | `Alt+Shift+X`   | Needs Ctrl, Alt or Super                        |
-| Enter action         | Copy            | Copy or Save                                    |
-| Image format         | PNG             | PNG or JPG                                      |
-| Capture folder       | `~/screenshots` | Must start with `/` or `~/`. Created if missing |
-| Show icon in top bar | On              | Show or hide the top bar icon                   |
-| Default colour       | `#ff0000`       | Hex, six digits                                 |
-| Default width        | 3 px            | 1-30                                            |
+Annotation colour and the gradient toggle are shared across tools and remembered locally as soon as they are changed. Each drawing tool remembers its own size; the default width applies to tools without a saved size and changing it does not clear saved overrides. The colour preference sets the shared colour for the next capture and is also updated by toolbar choices. New captures start idle and empty: screenshots, annotations, selections and undo history are not saved by this feature.
+
+| Setting                         | Default         | Notes                                              |
+| ------------------------------- | --------------- | -------------------------------------------------- |
+| Keyboard shortcut               | `Alt+Shift+X`   | Needs Ctrl, Alt or Super                           |
+| Enter action                    | Copy            | Copy or Save                                       |
+| Image format                    | PNG             | PNG or JPG                                         |
+| Capture folder                  | `~/screenshots` | Must start with `/` or `~/`. Created if missing    |
+| Show icon in top bar            | On              | Show or hide the top bar icon                      |
+| Color (remembered from toolbar) | `#ff0000`       | Hex, six digits                                    |
+| Default width                   | 3 px            | 1-30; fallback for tools without a remembered size |
 
 File names carry the capture date and time. If a name exists, a suffix is added instead of overwriting. A save error keeps your session open so you can retry.
 

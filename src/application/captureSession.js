@@ -1,7 +1,7 @@
 /** Coordinates one editor session through injected capture, view and output ports. */
 export class CaptureSession {
-    constructor({ capture, createEditor, createView, output, settings, notifyError }) {
-        Object.assign(this, { capture, createEditor, createView, output, settings, notifyError });
+    constructor({ capture, createEditor, createView, output, settings, writePreferences = () => {}, notifyError }) {
+        Object.assign(this, { capture, createEditor, createView, output, settings, writePreferences, notifyError });
         this._generation = 0;
         this._active = false;
         this._exporting = false;
@@ -13,6 +13,7 @@ export class CaptureSession {
         if (this._active || this._disposed) return;
         this._active = true;
         const generation = ++this._generation;
+        let preferenceFailureReported = false;
         try {
             const snapshot = await this.capture.capture();
             if (generation !== this._generation) return;
@@ -22,6 +23,19 @@ export class CaptureSession {
                 windows: snapshot.windows,
                 color: config.color,
                 width: config.width,
+                gradient: config.gradient,
+                toolWidths: config.toolWidths,
+                onPreferenceChange: (patch) => {
+                    if (generation !== this._generation || !this._active || this._disposed) return;
+                    try {
+                        this.writePreferences(patch);
+                    } catch (error) {
+                        if (!preferenceFailureReported) {
+                            preferenceFailureReported = true;
+                            this.notifyError('Could not save annotation preferences', error.message);
+                        }
+                    }
+                },
             });
             this._view = this.createView({
                 snapshot,
