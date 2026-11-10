@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import test from 'node:test';
@@ -10,7 +10,7 @@ function untrustedPath(t) {
     const dir = mkdtempSync(join(tmpdir(), 'mirx-untrusted-path-'));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const marker = join(dir, 'executed');
-    for (const tool of ['glib-compile-schemas', 'glslangValidator']) {
+    for (const tool of ['glib-compile-schemas', 'glslangValidator', 'zip', 'python3']) {
         writeFileSync(
             join(dir, tool),
             `#!${process.execPath}\nrequire('node:fs').writeFileSync(process.env.MIRX_TEST_MARKER, 'executed'); process.exit(42);\n`,
@@ -70,4 +70,24 @@ test('GLSL validation ignores executables in the inherited PATH', (t) => {
         assert.equal(result.status, 1, result.stderr);
         assert.match(result.stderr, /glslangValidator not found/);
     }
+});
+
+test('packaging ignores executables in the inherited PATH', (t) => {
+    const { env, marker } = untrustedPath(t);
+    const dir = mkdtempSync(join(tmpdir(), 'mirx-pack-path-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'src', 'schemas']) {
+        cpSync(name, join(dir, name), { recursive: true });
+    }
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/pack.js', import.meta.url))], {
+        cwd: dir,
+        env,
+        encoding: 'utf8',
+    });
+    assert.ifError(result.error);
+    assert.equal(existsSync(marker), false);
+    if (result.status !== 0 && /glib-compile-schemas|zip is required|python3 is required/.test(result.stderr))
+        return t.skip('packaging tools unavailable');
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(existsSync(join(dir, 'dist/mirx@devidence.dev.shell-extension.zip')));
 });
