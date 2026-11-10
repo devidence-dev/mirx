@@ -30,21 +30,21 @@ To update the code loaded in Wayland, you must also log out and back in after in
 
 Press **Alt+Shift+X**. Click a window, drag to select an area, click empty space (the desktop or the top bar) or press **Ctrl+A** to select the monitor under the pointer. Before you select, the highlight shows what a click would pick: the window under the pointer, or the whole monitor where there is no window. The image across all monitors remains frozen while editing.
 
-| Control | Action |
-| --- | --- |
-| Eight handles / drag empty interior | Resize / move the selection |
-| Arrow keys / Shift+arrow keys | Move / resize the selection by one desktop pixel |
-| ↖ on the toolbar | Select, move, and edit annotations |
-| Arrow, rectangle, ellipse, numbered marker, highlighter, pixelation, text | Choose a tool |
-| ◐ on the toolbar (Gradient) | Shade new or selected arrows, rectangles, ellipses and numbered markers so the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight. Off at the start of each session; highlighter, text and pixelation are never shaded (graphical checks pending) |
-| Shift while drawing an ellipse | Perfect circle |
-| Double-click text in selection mode | Edit its content |
-| Enter / Shift+Enter while editing text | Confirm / add a line |
-| Delete | Delete the selected annotation |
-| Ctrl+Z / Ctrl+Shift+Z | Undo / redo |
-| Ctrl+C / Ctrl+S | Copy PNG / save in the chosen format |
-| Enter outside the text editor | Run the configured action |
-| Esc | Cancel text, deselect an annotation, or close the capture |
+| Control                                                                   | Action                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eight handles / drag empty interior                                       | Resize / move the selection                                                                                                                                                                                                                                                                                               |
+| Arrow keys / Shift+arrow keys                                             | Move / resize the selection by one desktop pixel                                                                                                                                                                                                                                                                          |
+| ↖ on the toolbar                                                          | Select, move, and edit annotations                                                                                                                                                                                                                                                                                        |
+| Arrow, rectangle, ellipse, numbered marker, highlighter, pixelation, text | Choose a tool                                                                                                                                                                                                                                                                                                             |
+| ◐ on the toolbar (Gradient)                                               | Shade new or selected arrows, rectangles, ellipses and numbered markers so the colour slides into a neighbouring hue (for example blue to violet, red to pink, yellow to orange), with no white highlight. Off at the start of each session; highlighter, text and pixelation are never shaded (graphical checks pending) |
+| Shift while drawing an ellipse                                            | Perfect circle                                                                                                                                                                                                                                                                                                            |
+| Double-click text in selection mode                                       | Edit its content                                                                                                                                                                                                                                                                                                          |
+| Enter / Shift+Enter while editing text                                    | Confirm / add a line                                                                                                                                                                                                                                                                                                      |
+| Delete                                                                    | Delete the selected annotation                                                                                                                                                                                                                                                                                            |
+| Ctrl+Z / Ctrl+Shift+Z                                                     | Undo / redo                                                                                                                                                                                                                                                                                                               |
+| Ctrl+C / Ctrl+S                                                           | Copy PNG / save in the chosen format                                                                                                                                                                                                                                                                                      |
+| Enter outside the text editor                                             | Run the configured action                                                                                                                                                                                                                                                                                                 |
+| Esc                                                                       | Cancel text, deselect an annotation, or close the capture                                                                                                                                                                                                                                                                 |
 
 Before a selection exists, and while creating or resizing one, a magnifier appears next to the pointer and two thin solid guides cross at the pixel it marks, spanning the whole monitor under the pointer so you can line up distant edges. A translucent circle with a cross marks where they cross, and the pointer coordinates are shown next to it. They need no setting; they hide whenever the magnifier does and are never exported. The magnifier is a square with rounded corners, and translucent bands frame the marked pixel without covering it.
 
@@ -54,22 +54,36 @@ In preferences, you can change the shortcut, the Enter action, the output folder
 
 ## Architecture
 
-| Layer | Responsibility |
-| --- | --- |
-| `src/core` | Geometry, selection, annotations, and undo/redo commands. JavaScript with no GNOME dependencies. |
-| `src/application` | Coordinate capture and export through injected services; manage concurrency and shutdown. |
-| `src/platform` | Shell capture, file, and clipboard adapters. |
-| `src/rendering` | Draw annotations and sample pixelation from the original image. |
-| `src/ui` | Input events, overlay view, toolbar, magnifier, and decorations. |
-| `extension.js` | Compose services and manage the extension lifecycle. |
+| Layer             | Responsibility                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `src/core`        | Geometry, selection, annotations, and undo/redo commands. JavaScript with no GNOME dependencies. |
+| `src/application` | Coordinate capture and export through injected services; manage concurrency and shutdown.        |
+| `src/platform`    | Shell capture, file, and clipboard adapters.                                                     |
+| `src/rendering`   | Draw annotations and sample pixelation from the original image.                                  |
+| `src/ui`          | Input events, overlay view, toolbar, magnifier, and decorations.                                 |
+| `extension.js`    | Compose services and manage the extension lifecycle.                                             |
 
 Application dependencies are passed to the constructor, allowing the adapters to be replaced in tests. `CommandHistory` records one operation per gesture and discards the redo branch when a new action is created. The view and export share annotation rendering; decorations are separate. Text is measured using Pango, with the measurement injected into the model.
 
 Capture uses `Shell.Screenshot.screenshot_stage_to_content()` and excludes the cursor texture. The integration follows the [GNOME Shell 50 APIs](https://github.com/GNOME/gnome-shell/blob/gnome-50/js/ui/screenshot.js). Annotations and exports share GPU actors and shaders. Export paints the selection on the physical pixel grid; clipboard and PNG saves reuse the compositor's PNG bytes, while JPG saves encode the returned pixbuf. No capture history is stored.
 
+## Development
+
+```sh
+npm test              # unit tests
+npm run lint          # Biome: lint and format check
+npm run format        # Biome: apply formatting and safe lint fixes
+npm run glsl          # validate the GLSL shaders (needs glslangValidator, package glslang-tools)
+npm run coverage      # tests with coverage, writes lcov.info
+npm run check         # metadata, JavaScript syntax, and schema
+npm run pack          # build dist/mirx@mirx.local.shell-extension.zip
+```
+
+Install the dev dependency (Biome) once with `npm ci`; the tests and the extension itself have no runtime dependencies.
+
 ## Validation
 
-`npm test` checks geometry, editing and history, pixelation sampling, concurrency and session errors, and the preferences schema. `npm run check` checks metadata, JavaScript syntax, and the schema using GLib. Installing npm dependencies is not required.
+`npm test` checks geometry, editing and history, pixelation sampling, concurrency and session errors, and the preferences schema. `npm run check` checks metadata, JavaScript syntax, and the schema using GLib. Installing npm dependencies is not required for either.
 
 The Node tests do not run GNOME Shell or validate the graphical APIs in a real session. Installation, Wayland capture, visual interaction, clipboard, and PNG/JPG should be checked on Ubuntu 26.04 using the [manual test protocol](tests/MANUAL.md). GNOME Shell and GJS were unavailable in the implementation environment.
 

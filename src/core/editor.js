@@ -1,10 +1,20 @@
-import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handleAt, markerRadius} from './geometry.js';
-import {CommandHistory} from './history.js';
+import {
+    contains,
+    inside,
+    intersect,
+    fromPoints,
+    clampPoint,
+    moveRect,
+    resizeRect,
+    handleAt,
+    markerRadius,
+} from './geometry.js';
+import { CommandHistory } from './history.js';
 
-const clone = value => JSON.parse(JSON.stringify(value));
+const clone = (value) => JSON.parse(JSON.stringify(value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const startOf = annotation => ({x: annotation.x1, y: annotation.y1});
-const endOf = annotation => ({x: annotation.x2, y: annotation.y2});
+const startOf = (annotation) => ({ x: annotation.x1, y: annotation.y1 });
+const endOf = (annotation) => ({ x: annotation.x2, y: annotation.y2 });
 const DRAG_THRESHOLD = 5;
 
 export function supportsGradient(type) {
@@ -14,7 +24,7 @@ export function supportsGradient(type) {
 export function annotationRect(annotation) {
     if (annotation.type === 'marker') {
         const r = markerRadius(annotation.width);
-        return {x: annotation.x1 - r, y: annotation.y1 - r, width: 2 * r, height: 2 * r};
+        return { x: annotation.x1 - r, y: annotation.y1 - r, width: 2 * r, height: 2 * r };
     }
     return fromPoints(startOf(annotation), endOf(annotation));
 }
@@ -23,13 +33,13 @@ export function annotationRect(annotation) {
 export function markerNumbers(annotations) {
     const numbers = new Map();
     for (const annotation of annotations)
-        if (annotation.type === 'marker')
-            numbers.set(annotation.id, numbers.size + 1);
+        if (annotation.type === 'marker') numbers.set(annotation.id, numbers.size + 1);
     return numbers;
 }
 
 function lineDistance(point, a, b) {
-    const dx = b.x - a.x, dy = b.y - a.y;
+    const dx = b.x - a.x,
+        dy = b.y - a.y;
     const length = dx * dx + dy * dy;
     const t = length ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length)) : 0;
     return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
@@ -39,50 +49,68 @@ export function annotationHit(annotation, point) {
     const rect = annotationRect(annotation);
     const tolerance = Math.max(5, annotation.width / 2 + 2);
     switch (annotation.type) {
-    case 'arrow':
-        return lineDistance(point, startOf(annotation), endOf(annotation)) <= tolerance;
-    case 'pixelate':
-    case 'highlighter':
-    case 'text':
-        return contains(rect, point);
-    case 'rectangle': {
-        const outer = {x: rect.x - tolerance, y: rect.y - tolerance,
-            width: rect.width + 2 * tolerance, height: rect.height + 2 * tolerance};
-        const inner = {x: rect.x + tolerance, y: rect.y + tolerance,
-            width: Math.max(0, rect.width - 2 * tolerance), height: Math.max(0, rect.height - 2 * tolerance)};
-        return contains(outer, point) && (rect.width <= 2 * tolerance ||
-            rect.height <= 2 * tolerance || !contains(inner, point));
-    }
-    case 'circle': {
-        const rx = rect.width / 2, ry = rect.height / 2;
-        if (!rx || !ry)
+        case 'arrow':
             return lineDistance(point, startOf(annotation), endOf(annotation)) <= tolerance;
-        const normalized = Math.hypot((point.x - rect.x - rx) / rx, (point.y - rect.y - ry) / ry);
-        return Math.abs(normalized - 1) * Math.min(rx, ry) <= tolerance;
-    }
-    case 'marker':
-        return distance(point, startOf(annotation)) <= markerRadius(annotation.width);
-    default:
-        return false;
+        case 'pixelate':
+        case 'highlighter':
+        case 'text':
+            return contains(rect, point);
+        case 'rectangle': {
+            const outer = {
+                x: rect.x - tolerance,
+                y: rect.y - tolerance,
+                width: rect.width + 2 * tolerance,
+                height: rect.height + 2 * tolerance,
+            };
+            const inner = {
+                x: rect.x + tolerance,
+                y: rect.y + tolerance,
+                width: Math.max(0, rect.width - 2 * tolerance),
+                height: Math.max(0, rect.height - 2 * tolerance),
+            };
+            return (
+                contains(outer, point) &&
+                (rect.width <= 2 * tolerance || rect.height <= 2 * tolerance || !contains(inner, point))
+            );
+        }
+        case 'circle': {
+            const rx = rect.width / 2,
+                ry = rect.height / 2;
+            if (!rx || !ry) return lineDistance(point, startOf(annotation), endOf(annotation)) <= tolerance;
+            const normalized = Math.hypot((point.x - rect.x - rx) / rx, (point.y - rect.y - ry) / ry);
+            return Math.abs(normalized - 1) * Math.min(rx, ry) <= tolerance;
+        }
+        case 'marker':
+            return distance(point, startOf(annotation)) <= markerRadius(annotation.width);
+        default:
+            return false;
     }
 }
 
-function estimateText({text, width}) {
+function estimateText({ text, width }) {
     const lines = text.split('\n');
     const fontSize = Math.max(14, width * 5);
-    return {width: Math.max(1, ...lines.map(line => line.length)) * fontSize * 0.6,
-        height: lines.length * fontSize * 1.2};
+    return {
+        width: Math.max(1, ...lines.map((line) => line.length)) * fontSize * 0.6,
+        height: lines.length * fontSize * 1.2,
+    };
 }
 
 function squareEnd(start, point) {
     const size = Math.max(Math.abs(point.x - start.x), Math.abs(point.y - start.y));
-    return {x: start.x + (point.x < start.x ? -size : size),
-        y: start.y + (point.y < start.y ? -size : size)};
+    return { x: start.x + (point.x < start.x ? -size : size), y: start.y + (point.y < start.y ? -size : size) };
 }
 
 /** Session model. It has no knowledge of GNOME, the clipboard, files or rendering. */
 export class Editor {
-    constructor({monitors, windows = [], color = '#ff0000', width = 3, gradient = false, measureText = estimateText}) {
+    constructor({
+        monitors,
+        windows = [],
+        color = '#ff0000',
+        width = 3,
+        gradient = false,
+        measureText = estimateText,
+    }) {
         this.monitors = monitors;
         this.windows = windows;
         this.selection = null;
@@ -90,7 +118,7 @@ export class Editor {
         this.annotations = [];
         this.selectedId = null;
         this.tool = null;
-        this.style = {color, width, gradient};
+        this.style = { color, width, gradient };
         this.hover = null;
         this.draft = null;
         this.history = new CommandHistory();
@@ -108,13 +136,13 @@ export class Editor {
     }
 
     _measure(annotation) {
-        const size = this.measureText({text: annotation.text, width: annotation.width});
+        const size = this.measureText({ text: annotation.text, width: annotation.width });
         annotation.x2 = annotation.x1 + size.width;
         annotation.y2 = annotation.y1 + size.height;
     }
 
     _selected() {
-        return this.annotations.find(annotation => annotation.id === this.selectedId);
+        return this.annotations.find((annotation) => annotation.id === this.selectedId);
     }
 
     _gradientFor(type) {
@@ -127,17 +155,24 @@ export class Editor {
 
     _monitorAt(point) {
         // Half-open boundaries assign a shared monitor edge to exactly one monitor.
-        return this.monitors.find(monitor => point.x >= monitor.x && point.y >= monitor.y &&
-            point.x < monitor.x + monitor.width && point.y < monitor.y + monitor.height) ?? null;
+        return (
+            this.monitors.find(
+                (monitor) =>
+                    point.x >= monitor.x &&
+                    point.y >= monitor.y &&
+                    point.x < monitor.x + monitor.width &&
+                    point.y < monitor.y + monitor.height,
+            ) ?? null
+        );
     }
 
     _windowAt(point, monitor) {
-        const window = this.windows.find(rect => contains(rect, point));
+        const window = this.windows.find((rect) => contains(rect, point));
         return window && monitor ? intersect(window, monitor) : null;
     }
 
     _monitorRect(monitor) {
-        return monitor && {x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height};
+        return monitor && { x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height };
     }
 
     setTool(tool) {
@@ -150,94 +185,122 @@ export class Editor {
         Object.assign(this.style, style);
         const selected = this._selected();
         if (selected) {
-            const {gradient, ...shared} = style;
+            const { gradient, ...shared } = style;
             Object.assign(selected, shared);
             // Legacy annotations lack the field; compare as booleans so a no-op toggle records no undo entry.
-            if (gradient !== undefined && supportsGradient(selected.type) && Boolean(selected.gradient) !== Boolean(gradient))
+            if (
+                gradient !== undefined &&
+                supportsGradient(selected.type) &&
+                Boolean(selected.gradient) !== Boolean(gradient)
+            )
                 selected.gradient = Boolean(gradient);
-            if (selected.type === 'text' && style.width !== undefined)
-                this._measure(selected);
+            if (selected.type === 'text' && style.width !== undefined) this._measure(selected);
         }
         this._commit(before);
     }
 
     selectMonitor(point) {
         const monitor = this._monitorAt(point);
-        if (!monitor)
-            return false;
+        if (!monitor) return false;
         this.monitor = monitor;
         this.selection = this._monitorRect(monitor);
         this.selectedId = null;
         return true;
     }
 
-    pointerDown(point, {clickCount = 1} = {}) {
-        if (!this.selection) {
-            const monitor = this._monitorAt(point);
-            if (monitor) {
-                this.monitor = monitor;
-                this._gesture = {kind: 'select', start: point, monitor,
-                    window: this._windowAt(point, monitor)};
-            }
+    pointerDown(point, { clickCount = 1 } = {}) {
+        if (!this.selection) return this._beginSelect(point);
+        if (this.tool) return this._pointerDownWithTool(point);
+        return this._pointerDownIdle(point, clickCount);
+    }
+
+    _beginSelect(point) {
+        const monitor = this._monitorAt(point);
+        if (monitor) {
+            this.monitor = monitor;
+            this._gesture = { kind: 'select', start: point, monitor, window: this._windowAt(point, monitor) };
+        }
+        return null;
+    }
+
+    _newAnnotationAt(type, point) {
+        return {
+            id: this._nextId++,
+            type,
+            ...this.style,
+            gradient: this._gradientFor(type),
+            x1: point.x,
+            y1: point.y,
+            x2: point.x,
+            y2: point.y,
+        };
+    }
+
+    _pointerDownWithTool(point) {
+        const handle = handleAt(this.selection, point);
+        if (handle && !inside(this.selection, point)) {
+            this._gesture = { kind: 'selection-resize', handle, start: point, original: { ...this.selection } };
             return null;
         }
-        if (this.tool) {
-            const handle = handleAt(this.selection, point);
-            if (handle && !inside(this.selection, point)) {
-                this._gesture = {kind: 'selection-resize', handle,
-                    start: point, original: {...this.selection}};
-                return null;
-            }
-            if (!contains(this.selection, point))
-                return null;
-            if (this.tool === 'text')
-                return {newText: {...point}};
-            if (this.tool === 'marker') {
-                const before = this._snapshot();
-                this.annotations.push({id: this._nextId++, type: 'marker', ...this.style,
-                    gradient: this._gradientFor('marker'), x1: point.x, y1: point.y, x2: point.x, y2: point.y});
-                this._commit(before);
-                return null;
-            }
-            this.draft = {id: this._nextId++, type: this.tool, ...this.style,
-                gradient: this._gradientFor(this.tool), x1: point.x, y1: point.y, x2: point.x, y2: point.y};
-            this._gesture = {kind: 'draw', start: point, before: this._snapshot()};
+        if (!contains(this.selection, point)) return null;
+        if (this.tool === 'text') return { newText: { ...point } };
+        if (this.tool === 'marker') {
+            const before = this._snapshot();
+            this.annotations.push(this._newAnnotationAt('marker', point));
+            this._commit(before);
             return null;
         }
+        this.draft = this._newAnnotationAt(this.tool, point);
+        this._gesture = { kind: 'draw', start: point, before: this._snapshot() };
+        return null;
+    }
+
+    _selectedHandleAt(selected, point) {
+        if (selected.type !== 'arrow') return handleAt(annotationRect(selected), point);
+        if (distance(point, startOf(selected)) <= 7) return 'start';
+        return distance(point, endOf(selected)) <= 7 ? 'end' : null;
+    }
+
+    _pointerDownIdle(point, clickCount) {
         const selected = this._selected();
         if (selected && !['text', 'marker'].includes(selected.type)) {
-            const handle = selected.type === 'arrow'
-                ? distance(point, startOf(selected)) <= 7 ? 'start' : distance(point, endOf(selected)) <= 7 ? 'end' : null
-                : handleAt(annotationRect(selected), point);
+            const handle = this._selectedHandleAt(selected, point);
             if (handle) {
-                this._gesture = {kind: 'annotation-resize', handle, start: point,
-                    original: clone(selected), before: this._snapshot()};
+                this._gesture = {
+                    kind: 'annotation-resize',
+                    handle,
+                    start: point,
+                    original: clone(selected),
+                    before: this._snapshot(),
+                };
                 return null;
             }
         }
         const selectionHandle = handleAt(this.selection, point);
         if (selectionHandle) {
             this.selectedId = null;
-            this._gesture = {kind: 'selection-resize', handle: selectionHandle,
-                start: point, original: {...this.selection}};
+            this._gesture = {
+                kind: 'selection-resize',
+                handle: selectionHandle,
+                start: point,
+                original: { ...this.selection },
+            };
             return null;
         }
-        const hit = [...this.annotations].reverse().find(annotation => annotationHit(annotation, point));
+        const hit = [...this.annotations].reverse().find((annotation) => annotationHit(annotation, point));
         if (hit) {
             this.selectedId = hit.id;
-            if (hit.type === 'text' && clickCount >= 2)
-                return {editText: hit.id};
-            this._gesture = {kind: 'annotation-move', start: point,
-                original: clone(hit), before: this._snapshot()};
+            if (hit.type === 'text' && clickCount >= 2) return { editText: hit.id };
+            this._gesture = { kind: 'annotation-move', start: point, original: clone(hit), before: this._snapshot() };
             return null;
         }
         this.selectedId = null;
         if (contains(this.selection, point))
-            this._gesture = {kind: 'selection-move', start: point, original: {...this.selection}};
+            this._gesture = { kind: 'selection-move', start: point, original: { ...this.selection } };
         return null;
     }
 
-    pointerMove(point, {shift = false} = {}) {
+    pointerMove(point, { shift = false } = {}) {
         const gesture = this._gesture;
         if (!gesture) {
             if (!this.selection) {
@@ -248,33 +311,40 @@ export class Editor {
             return;
         }
         switch (gesture.kind) {
-        case 'select':
-            this.draft = distance(point, gesture.start) >= DRAG_THRESHOLD
-                ? fromPoints(gesture.start, clampPoint(point, gesture.monitor)) : null;
-            break;
-        case 'draw': {
-            const end = shift && this.draft.type === 'circle' ? squareEnd(gesture.start, point) : point;
-            this.draft.x2 = end.x;
-            this.draft.y2 = end.y;
-            break;
-        }
-        case 'selection-move':
-            this.selection = moveRect(gesture.original, point.x - gesture.start.x, point.y - gesture.start.y, this.monitor);
-            break;
-        case 'selection-resize':
-            this.selection = this._resizeSelection(gesture.original, gesture.handle, point);
-            break;
-        default:
-            this._transformAnnotation(gesture, point);
+            case 'select':
+                this.draft =
+                    distance(point, gesture.start) >= DRAG_THRESHOLD
+                        ? fromPoints(gesture.start, clampPoint(point, gesture.monitor))
+                        : null;
+                break;
+            case 'draw': {
+                const end = shift && this.draft.type === 'circle' ? squareEnd(gesture.start, point) : point;
+                this.draft.x2 = end.x;
+                this.draft.y2 = end.y;
+                break;
+            }
+            case 'selection-move':
+                this.selection = moveRect(
+                    gesture.original,
+                    point.x - gesture.start.x,
+                    point.y - gesture.start.y,
+                    this.monitor,
+                );
+                break;
+            case 'selection-resize':
+                this.selection = this._resizeSelection(gesture.original, gesture.handle, point);
+                break;
+            default:
+                this._transformAnnotation(gesture, point);
         }
     }
 
     _transformAnnotation(gesture, point) {
         const annotation = this._selected();
-        if (!annotation)
-            return;
+        if (!annotation) return;
         if (gesture.kind === 'annotation-move') {
-            const dx = point.x - gesture.start.x, dy = point.y - gesture.start.y;
+            const dx = point.x - gesture.start.x,
+                dy = point.y - gesture.start.y;
             annotation.x1 = gesture.original.x1 + dx;
             annotation.x2 = gesture.original.x2 + dx;
             annotation.y1 = gesture.original.y1 + dy;
@@ -294,14 +364,14 @@ export class Editor {
 
     pointerUp(point, options = {}) {
         const gesture = this._gesture;
-        if (!gesture)
-            return null;
+        if (!gesture) return null;
         this.pointerMove(point, options);
         if (gesture.kind === 'select') {
-            this.selection = distance(point, gesture.start) < DRAG_THRESHOLD
-                ? gesture.window ?? this._monitorRect(gesture.monitor) : fromPoints(gesture.start, clampPoint(point, gesture.monitor));
-            if (this.selection && (!this.selection.width || !this.selection.height))
-                this.selection = null;
+            this.selection =
+                distance(point, gesture.start) < DRAG_THRESHOLD
+                    ? (gesture.window ?? this._monitorRect(gesture.monitor))
+                    : fromPoints(gesture.start, clampPoint(point, gesture.monitor));
+            if (this.selection && (!this.selection.width || !this.selection.height)) this.selection = null;
             this.draft = null;
             this.hover = null;
         } else if (gesture.kind === 'draw') {
@@ -327,11 +397,19 @@ export class Editor {
     }
 
     addText(point, text) {
-        if (!text || !this.selection || !contains(this.selection, point))
-            return null;
+        if (!text || !this.selection || !contains(this.selection, point)) return null;
         const before = this._snapshot();
-        const annotation = {id: this._nextId++, type: 'text', ...this.style,
-            gradient: this._gradientFor('text'), x1: point.x, y1: point.y, x2: point.x, y2: point.y, text};
+        const annotation = {
+            id: this._nextId++,
+            type: 'text',
+            ...this.style,
+            gradient: this._gradientFor('text'),
+            x1: point.x,
+            y1: point.y,
+            x2: point.x,
+            y2: point.y,
+            text,
+        };
         this._measure(annotation);
         this.annotations.push(annotation);
         this._commit(before);
@@ -339,9 +417,8 @@ export class Editor {
     }
 
     updateText(id, text) {
-        const annotation = this.annotations.find(a => a.id === id && a.type === 'text');
-        if (!annotation)
-            return false;
+        const annotation = this.annotations.find((a) => a.id === id && a.type === 'text');
+        if (!annotation) return false;
         const before = this._snapshot();
         annotation.text = text;
         this._measure(annotation);
@@ -350,39 +427,35 @@ export class Editor {
     }
 
     nudge(dx, dy, resize = false) {
-        if (!this.selection || !this.monitor || this.selectedId !== null)
-            return;
-        this.selection = resize ? this._resizeSelection(this.selection, 'se', {
-            x: this.selection.x + this.selection.width + dx,
-            y: this.selection.y + this.selection.height + dy,
-        }) : moveRect(this.selection, dx, dy, this.monitor);
+        if (!this.selection || !this.monitor || this.selectedId !== null) return;
+        this.selection = resize
+            ? this._resizeSelection(this.selection, 'se', {
+                  x: this.selection.x + this.selection.width + dx,
+                  y: this.selection.y + this.selection.height + dy,
+              })
+            : moveRect(this.selection, dx, dy, this.monitor);
     }
 
     undo() {
         const annotations = this.history.undo();
-        if (!annotations)
-            return false;
+        if (!annotations) return false;
         this.annotations = annotations;
-        if (!this._selected())
-            this.selectedId = null;
+        if (!this._selected()) this.selectedId = null;
         return true;
     }
 
     redo() {
         const annotations = this.history.redo();
-        if (!annotations)
-            return false;
+        if (!annotations) return false;
         this.annotations = annotations;
-        if (!this._selected())
-            this.selectedId = null;
+        if (!this._selected()) this.selectedId = null;
         return true;
     }
 
     deleteSelected() {
-        if (!this._selected())
-            return false;
+        if (!this._selected()) return false;
         const before = this._snapshot();
-        this.annotations = this.annotations.filter(annotation => annotation.id !== this.selectedId);
+        this.annotations = this.annotations.filter((annotation) => annotation.id !== this.selectedId);
         this.selectedId = null;
         this._commit(before);
         return true;

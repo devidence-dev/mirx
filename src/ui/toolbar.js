@@ -3,28 +3,40 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 const TOOLS = [
-    [null, '↖', 'Select and move'], ['arrow', '↗', 'Arrow'],
-    ['rectangle', '□', 'Rectangle'], ['circle', '○', 'Ellipse (Shift: circle)'],
+    [null, '↖', 'Select and move'],
+    ['arrow', '↗', 'Arrow'],
+    ['rectangle', '□', 'Rectangle'],
+    ['circle', '○', 'Ellipse (Shift: circle)'],
     ['marker', '①', 'Numbered marker'],
-    ['highlighter', '▰', 'Highlighter'], ['pixelate', '▦', 'Pixelate'], ['text', 'T', 'Text'],
+    ['highlighter', '▰', 'Highlighter'],
+    ['pixelate', '▦', 'Pixelate'],
+    ['text', 'T', 'Text'],
 ];
 const COLORS = [
-    ['#ff0000', 'Red'], ['#ffcc00', 'Yellow'], ['#00cc66', 'Green'],
-    ['#0088ff', 'Blue'], ['#cc55ff', 'Violet'], ['#ffffff', 'White'], ['#000000', 'Black'],
+    ['#ff0000', 'Red'],
+    ['#ffcc00', 'Yellow'],
+    ['#00cc66', 'Green'],
+    ['#0088ff', 'Blue'],
+    ['#cc55ff', 'Violet'],
+    ['#ffffff', 'White'],
+    ['#000000', 'Black'],
 ];
 
 export class Toolbar {
-    constructor({onTool, onStyle, onUndo, onRedo, onExport, onCancel}) {
-        this.actor = new St.BoxLayout({style_class: 'mirx-toolbar', reactive: true,
-            orientation: Clutter.Orientation.VERTICAL, visible: false});
+    constructor({ onTool, onStyle, onUndo, onRedo, onExport, onCancel }) {
+        this.actor = new St.BoxLayout({
+            style_class: 'mirx-toolbar',
+            reactive: true,
+            orientation: Clutter.Orientation.VERTICAL,
+            visible: false,
+        });
         // shortcut: the blur is a rectangle and ignores border-radius, use a rounded-clip shader if the corners show.
-        this.actor.add_effect(new Shell.BlurEffect({mode: Shell.BlurMode.BACKGROUND,
-            radius: 30, brightness: 0.75}));
+        this.actor.add_effect(new Shell.BlurEffect({ mode: Shell.BlurMode.BACKGROUND, radius: 30, brightness: 0.75 }));
         this._tools = new Map();
         this._colors = new Map();
-        const tools = new St.BoxLayout({style_class: 'mirx-row'});
+        const tools = new St.BoxLayout({ style_class: 'mirx-row' });
         this.actor.add_child(tools);
-        this._toolLabel = new St.Label({style_class: 'mirx-tool-label'});
+        this._toolLabel = new St.Label({ style_class: 'mirx-tool-label' });
         for (const [tool, label, name] of TOOLS) {
             const button = this._button(label, name, () => onTool(tool));
             button.connect('enter-event', () => {
@@ -38,23 +50,23 @@ export class Toolbar {
         tools.add_child(this._button('↷', 'Redo (Ctrl+Shift+Z)', onRedo));
         this.actor.add_child(this._toolLabel);
 
-        const style = new St.BoxLayout({style_class: 'mirx-row'});
+        const style = new St.BoxLayout({ style_class: 'mirx-row' });
         this.actor.add_child(style);
         for (const [color, name] of COLORS) {
-            const button = this._button(' ', name, () => onStyle({color}));
+            const button = this._button(' ', name, () => onStyle({ color }));
             button.add_style_class_name('mirx-swatch');
             button.set_style(`background-color: ${color};`);
             style.add_child(button);
             this._colors.set(color, button);
         }
-        style.add_child(this._button('−', 'Decrease width', () => onStyle({width: Math.max(1, this._width - 1)})));
-        this._widthLabel = new St.Label({text: '3 px', y_align: Clutter.ActorAlign.CENTER});
+        style.add_child(this._button('−', 'Decrease width', () => onStyle({ width: Math.max(1, this._width - 1) })));
+        this._widthLabel = new St.Label({ text: '3 px', y_align: Clutter.ActorAlign.CENTER });
         style.add_child(this._widthLabel);
-        style.add_child(this._button('+', 'Increase width', () => onStyle({width: Math.min(30, this._width + 1)})));
-        this._gradient = this._button('◐', 'Gradient', () => onStyle({gradient: !this._gradientOn}));
+        style.add_child(this._button('+', 'Increase width', () => onStyle({ width: Math.min(30, this._width + 1) })));
+        this._gradient = this._button('◐', 'Gradient', () => onStyle({ gradient: !this._gradientOn }));
         style.add_child(this._gradient);
 
-        const actions = new St.BoxLayout({style_class: 'mirx-row'});
+        const actions = new St.BoxLayout({ style_class: 'mirx-row' });
         this.actor.add_child(actions);
         actions.add_child(this._button('Copy', 'Copy (Ctrl+C)', () => onExport('copy')));
         actions.add_child(this._button('Save', 'Save (Ctrl+S)', () => onExport('save')));
@@ -62,14 +74,13 @@ export class Toolbar {
     }
 
     _button(label, name, callback) {
-        const button = new St.Button({label, accessible_name: name,
-            style_class: 'mirx-button', can_focus: true});
+        const button = new St.Button({ label, accessible_name: name, style_class: 'mirx-button', can_focus: true });
         button.connect('clicked', callback);
         return button;
     }
 
     update(editor) {
-        const selected = editor.annotations.find(a => a.id === editor.selectedId);
+        const selected = editor.annotations.find((a) => a.id === editor.selectedId);
         const style = selected ?? editor.style;
         this._toolLabel.text = TOOLS.find(([tool]) => tool === editor.tool)?.[2] ?? '';
         this._width = style.width;
@@ -89,12 +100,11 @@ export class Toolbar {
         const scale = Math.min(1, (monitor.width - 12) / width, (monitor.height - 12) / height);
         this.actor.set_pivot_point(0, 0);
         this.actor.set_scale(scale, scale);
-        const w = width * scale, h = height * scale;
-        const x = Math.max(monitor.x + 6,
-            Math.min(selection.x, monitor.x + monitor.width - w - 6));
+        const w = width * scale,
+            h = height * scale;
+        const x = Math.max(monitor.x + 6, Math.min(selection.x, monitor.x + monitor.width - w - 6));
         let y = selection.y + selection.height + 10;
-        if (y + h > monitor.y + monitor.height - 6)
-            y = selection.y - h - 10;
+        if (y + h > monitor.y + monitor.height - 6) y = selection.y - h - 10;
         if (y < monitor.y + 6)
             y = Math.max(monitor.y + 6, Math.min(selection.y + 10, monitor.y + monitor.height - h - 6));
         this.actor.set_position(x, y);

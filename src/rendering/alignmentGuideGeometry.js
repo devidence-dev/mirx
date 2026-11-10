@@ -14,20 +14,35 @@ export function guideScale(monitor, textureScale) {
  */
 export function alignmentGuideGeometry(point, monitor, textureScale) {
     const scale = guideScale(monitor, textureScale);
-    const length = {x: monitor.width * scale, y: monitor.height * scale};
-    const axis = key => {
+    const length = { x: monitor.width * scale, y: monitor.height * scale };
+    const axis = (key) => {
         const centre = (Math.floor(point[key] * textureScale) + 0.5) / textureScale;
-        const core = clamp(Math.round((centre - monitor[key]) * scale - 0.5), 0, Math.max(0, Math.ceil(length[key]) - 1));
-        const start = Math.max(0, core - 1), end = Math.min(length[key], core + 2);
-        return {start: start / scale, size: Math.max(0, end - start) / scale, core: core - start, index: core};
+        const core = clamp(
+            Math.round((centre - monitor[key]) * scale - 0.5),
+            0,
+            Math.max(0, Math.ceil(length[key]) - 1),
+        );
+        const start = Math.max(0, core - 1),
+            end = Math.min(length[key], core + 2);
+        return { start: start / scale, size: Math.max(0, end - start) / scale, core: core - start, index: core };
     };
-    const x = axis('x'), y = axis('y');
+    const x = axis('x'),
+        y = axis('y');
     // Odd physical square centred on the core pixel centre (index + 0.5); not clipped, the container clips it.
     const half = Math.max(2, Math.round(RING_UNITS * scale)) + 1;
-    const ring = {x: (x.index - half) / scale, y: (y.index - half) / scale, size: (2 * half + 1) / scale, half,
-        radius: Math.max(3, Math.round(8 * scale)), inner: 0, outer: Math.max(5, Math.round(15 * scale)) - 1};
-    return {scale,
-        vertical: {x: x.start, y: 0, width: x.size, height: monitor.height, core: x.core},
-        horizontal: {x: 0, y: y.start, width: monitor.width, height: y.size, core: y.core},
-        ring};
+    const ring = {
+        x: (x.index - half) / scale,
+        y: (y.index - half) / scale,
+        size: (2 * half + 1) / scale,
+        half,
+        radius: Math.max(3, Math.round(8 * scale)),
+        inner: 0,
+        outer: Math.max(5, Math.round(15 * scale)) - 1,
+    };
+    return {
+        scale,
+        vertical: { x: x.start, y: 0, width: x.size, height: monitor.height, core: x.core },
+        horizontal: { x: 0, y: y.start, width: monitor.width, height: y.size, core: y.core },
+        ring,
+    };
 }

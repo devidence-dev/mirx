@@ -1,16 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CaptureSession} from '../src/application/captureSession.js';
-import {Editor} from '../src/core/editor.js';
+import { CaptureSession } from '../src/application/captureSession.js';
+import { Editor } from '../src/core/editor.js';
 
 function deferred() {
     let resolve, reject;
-    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
-    return {promise, resolve, reject};
+    const promise = new Promise((yes, no) => {
+        resolve = yes;
+        reject = no;
+    });
+    return { promise, resolve, reject };
 }
 
 const snapshot = {
-    monitors: [{x: 0, y: 0, width: 800, height: 600, scale: 1}],
+    monitors: [{ x: 0, y: 0, width: 800, height: 600, scale: 1 }],
     windows: [],
 };
 
@@ -19,41 +22,80 @@ function fixture() {
     const views = [];
     const notifications = [];
     const calls = [];
-    let config = {color: '#ff0000', width: 3, enterAction: 'copy', folder: '/old'};
+    let config = { color: '#ff0000', width: 3, enterAction: 'copy', folder: '/old' };
     let runOutput = () => Promise.resolve();
     const session = new CaptureSession({
-        capture: {capture() { const pending = deferred(); captures.push(pending); return pending.promise; }},
-        createEditor: options => new Editor(options),
-        createView: args => {
+        capture: {
+            capture() {
+                const pending = deferred();
+                captures.push(pending);
+                return pending.promise;
+            },
+        },
+        createEditor: (options) => new Editor(options),
+        createView: (args) => {
             const view = {
-                ...args, opens: 0, destroys: 0, busy: [], errors: [],
-                open() { this.opens++; },
-                destroy() { this.destroys++; },
-                setBusy(value) { this.busy.push(value); },
-                showError(message) { this.errors.push(message); },
-                withExportContent(callback) { return callback(); },
+                ...args,
+                opens: 0,
+                destroys: 0,
+                busy: [],
+                errors: [],
+                open() {
+                    this.opens++;
+                },
+                destroy() {
+                    this.destroys++;
+                },
+                setBusy(value) {
+                    this.busy.push(value);
+                },
+                showError(message) {
+                    this.errors.push(message);
+                },
+                withExportContent(callback) {
+                    return callback();
+                },
             };
             views.push(view);
             return view;
         },
         output: {
-            save(...args) { calls.push({action: 'save', args}); return runOutput(); },
-            copy(...args) { calls.push({action: 'copy', args}); return runOutput(); },
+            save(...args) {
+                calls.push({ action: 'save', args });
+                return runOutput();
+            },
+            copy(...args) {
+                calls.push({ action: 'copy', args });
+                return runOutput();
+            },
         },
         settings: () => config,
         notifyError: (...args) => notifications.push(args),
     });
     return {
-        session, captures, views, notifications, calls,
-        setConfig(value) { config = value; },
-        setOutput(value) { runOutput = value; },
-        async open() { const pending = session.open(); captures.at(-1).resolve(snapshot); await pending; return views.at(-1); },
+        session,
+        captures,
+        views,
+        notifications,
+        calls,
+        setConfig(value) {
+            config = value;
+        },
+        setOutput(value) {
+            runOutput = value;
+        },
+        async open() {
+            const pending = session.open();
+            captures.at(-1).resolve(snapshot);
+            await pending;
+            return views.at(-1);
+        },
     };
 }
 
 function select(view) {
-    view.editor.selectMonitor({x: 10, y: 10});
-    view.editor.addText({x: 20, y: 20}, 'note');
+    view.editor.selectMonitor({ x: 10, y: 10 });
+    view.editor.addText({ x: 20, y: 20 }, 'note');
 }
 
 test('duplicate shortcut while capture is pending or overlay is open is ignored', async () => {
@@ -99,10 +141,10 @@ test('save failure keeps the editor and overlay intact and clears busy state', a
     const f = fixture();
     const view = await f.open();
     select(view);
-    const before = structuredClone({selection: view.editor.selection, annotations: view.editor.annotations});
+    const before = structuredClone({ selection: view.editor.selection, annotations: view.editor.annotations });
     f.setOutput(() => Promise.reject(new Error('disk full')));
     await view.onExport('save');
-    assert.deepEqual({selection: view.editor.selection, annotations: view.editor.annotations}, before);
+    assert.deepEqual({ selection: view.editor.selection, annotations: view.editor.annotations }, before);
     assert.equal(view.destroys, 0);
     assert.deepEqual(view.busy, [true, false]);
     assert.deepEqual(view.errors, ['disk full']);
@@ -143,13 +185,13 @@ test('successful export closes once and suppresses concurrent exports', async ()
 test('settings are read after capture and again when saving', async () => {
     const f = fixture();
     const opening = f.session.open();
-    f.setConfig({color: '#00ff00', width: 6, enterAction: 'save', folder: '/first'});
+    f.setConfig({ color: '#00ff00', width: 6, enterAction: 'save', folder: '/first' });
     f.captures[0].resolve(snapshot);
     await opening;
     const view = f.views[0];
-    assert.deepEqual(view.editor.style, {color: '#00ff00', width: 6, gradient: false});
+    assert.deepEqual(view.editor.style, { color: '#00ff00', width: 6, gradient: false });
     select(view);
-    const latest = {color: '#0000ff', width: 9, enterAction: 'copy', folder: '/latest'};
+    const latest = { color: '#0000ff', width: 9, enterAction: 'copy', folder: '/latest' };
     f.setConfig(latest);
     assert.equal(view.enterAction(), 'copy');
     await view.onExport('save');
@@ -205,14 +247,23 @@ test('modal open failure destroys the view and allows recovery', async () => {
     const views = [];
     const errors = [];
     const session = new CaptureSession({
-        capture: {capture: async () => snapshot},
-        createEditor: options => new Editor(options),
+        capture: { capture: async () => snapshot },
+        createEditor: (options) => new Editor(options),
         createView: () => {
-            const view = {destroyed: 0, open() { if (++attempts === 1) throw new Error('modal unavailable'); }, destroy() { this.destroyed++; }};
+            const view = {
+                destroyed: 0,
+                open() {
+                    if (++attempts === 1) throw new Error('modal unavailable');
+                },
+                destroy() {
+                    this.destroyed++;
+                },
+            };
             views.push(view);
             return view;
         },
-        output: {}, settings: () => ({color: '#f00', width: 3}),
+        output: {},
+        settings: () => ({ color: '#f00', width: 3 }),
         notifyError: (...args) => errors.push(args),
     });
     await session.open();
@@ -226,18 +277,26 @@ test('modal open failure destroys the view and allows recovery', async () => {
 test('export uses the view content without preparing pixel data', async () => {
     const f = fixture();
     const opening = f.session.open();
-    const captured = {...snapshot,
-        get pixbufReady() { throw new Error('full pixbuf requested'); },
-        ensurePixelation() { throw new Error('pixelation tiles requested'); },
+    const captured = {
+        ...snapshot,
+        get pixbufReady() {
+            throw new Error('full pixbuf requested');
+        },
+        ensurePixelation() {
+            throw new Error('pixelation tiles requested');
+        },
     };
     f.captures[0].resolve(captured);
     await opening;
     const view = f.views[0];
     select(view);
-    view.editor.annotations.push({type: 'pixelate'});
+    view.editor.annotations.push({ type: 'pixelate' });
     await view.onExport('copy');
     assert.equal(f.calls.length, 1);
-    assert.equal(f.calls[0].args[4].withExportContent(() => 'painted'), 'painted');
+    assert.equal(
+        f.calls[0].args[4].withExportContent(() => 'painted'),
+        'painted',
+    );
 });
 
 test('export forwards the completion callback to the output port', async () => {
@@ -245,7 +304,9 @@ test('export forwards the completion callback to the output port', async () => {
     const view = await f.open();
     select(view);
     let completed = false;
-    const onComplete = () => { completed = true; };
+    const onComplete = () => {
+        completed = true;
+    };
     await view.onExport('copy', onComplete);
     assert.equal(f.calls[0].args[4].onComplete, onComplete);
     f.calls[0].args[4].onComplete();

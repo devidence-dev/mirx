@@ -13,5 +13,5 @@ export function measureText(text, width) {
     layout.set_font_description(textFont(width));
     layout.set_text(text ?? '', -1);
     const [w, h] = layout.get_pixel_size();
-    return {width: Math.max(1, w), height: Math.max(1, h)};
+    return { width: Math.max(1, w), height: Math.max(1, h) };
 }

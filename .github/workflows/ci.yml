@@ -1,0 +1,15 @@
+name: 🧪 CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    ci:
+        name: 🧪 CI
+        uses: devidence-dev/workflows/.github/workflows/ci-gnome-extension.yml@v2
+        permissions:
+            contents: read
+            id-token: write
