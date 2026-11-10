@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { schemaCompiler } from './tools.js';
+import { ICON_FILES } from '../src/ui/toolbarModel.js';
 
 function run(command, args, options = {}) {
     const result = spawnSync(command, args, { stdio: 'inherit', ...options });
@@ -19,6 +20,12 @@ try {
     if (!existsSync(icon)) throw new Error(`Required package file missing: ${icon}`);
     mkdirSync(join(stage, 'icons'));
     cpSync(icon, join(stage, icon));
+    mkdirSync(join(stage, 'icons/tools'));
+    for (const file of ICON_FILES) {
+        const path = `icons/tools/${file}`;
+        if (!existsSync(path)) throw new Error(`Required package file missing: ${path}`);
+        cpSync(path, join(stage, path));
+    }
     // Compile only to validate the schema; gnome-extensions install and the Shell compile it on install.
     run(schemaCompiler(), ['--strict', join(stage, 'schemas')]);
     rmSync(join(stage, 'schemas', 'gschemas.compiled'), { force: true });

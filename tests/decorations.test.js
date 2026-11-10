@@ -43,12 +43,13 @@ test('annotation decorations reuse actors and hide unused handles', () => {
     assert.deepEqual(
         decorations._handles.filter((handle) => handle.visible).map((handle) => handle.position),
         [
-            [6, 16],
-            [36, 46],
+            [5, 15],
+            [35, 45],
         ],
     );
     assert.deepEqual(decorations._box.position, [10, 20]);
     assert.deepEqual(decorations._box.size, [30, 30]);
+    assert.ok(decorations._handles.every((handle) => handle.width === 10 && handle.height === 10));
     const unchanged = writes;
     decorations.update({ annotations: [{ ...arrow }], selectedId: 1 });
     assert.equal(writes, unchanged);

@@ -47,7 +47,7 @@ function selection(e) {
 function draw(e, type, a = { x: 80, y: 80 }, b = { x: 200, y: 160 }, opts = {}) {
     e.setTool(type);
     drag(e, a, b, opts);
-    e.setTool(null);
+    e.setTool('select');
 }
 test('geometry normalizes, clips, moves, and exposes eight handles', () => {
     assert.deepEqual(fromPoints({ x: 8, y: 9 }, { x: 2, y: 3 }), { x: 2, y: 3, width: 6, height: 6 });
@@ -214,7 +214,7 @@ test('arrow endpoints, circle shift, text, escape', () => {
     e.setTool('text');
     assert.deepEqual(e.pointerDown({ x: 90, y: 200 }), { newText: { x: 90, y: 200 } });
     const id = e.addText({ x: 90, y: 200 }, 'hello');
-    e.setTool(null);
+    e.setTool('select');
     assert.deepEqual(e.pointerDown({ x: 105, y: 205 }, { clickCount: 2 }), { editText: id });
     e.updateText(id, 'hello\nworld');
     assert.equal(e.annotations.at(-1).text, 'hello\nworld');
@@ -275,7 +275,7 @@ test('text measurements follow styles, and no-op actions preserve redo', () => {
     });
     e.selectMonitor({ x: 1, y: 1 });
     const id = e.addText({ x: 100, y: 100 }, 'abc');
-    e.setTool(null);
+    e.setTool('select');
     e.pointerDown({ x: 103, y: 103 });
     e.pointerUp({ x: 103, y: 103 });
     e.setStyle({ width: 6 });
@@ -446,7 +446,7 @@ test('deleting a marker renumbers the rest, and undo and redo of the deletion re
         { x: 300, y: 200 },
     ])
         place(e, p);
-    e.setTool(null);
+    e.setTool('select');
     place(e, { x: 200, y: 150 });
     assert.equal(e.deleteSelected(), true);
     assert.deepEqual(labels(e), [1, 2]);
@@ -474,7 +474,7 @@ test('a selected marker moves and restyles keeping its number, and starts no res
         { x: 300, y: 200 },
     ])
         place(e, p);
-    e.setTool(null);
+    e.setTool('select');
     place(e, { x: 200, y: 150 });
     // (212, 150) is the east handle of marker 2's box; a resize gesture would start here.
     e.pointerDown({ x: 212, y: 150 });
@@ -510,7 +510,7 @@ test('new arrow, rectangle, ellipse and marker store gradient only while the tog
     draw(on, 'circle');
     on.setTool('marker');
     place(on, { x: 300, y: 300 });
-    on.setTool(null);
+    on.setTool('select');
     assert.deepEqual(
         on.annotations.map((a) => [a.type, a.gradient]),
         [
@@ -580,6 +580,7 @@ test('toggling a selected highlighter, text or pixelate changes nothing and reco
         const e = editor();
         selection(e);
         create(e);
+        e.setTool('select');
         e.pointerDown(point);
         e.pointerUp(point);
         assert.equal(e.selectedId, e.annotations[0].id, type);
@@ -660,6 +661,7 @@ test('an annotation without the gradient field reads as flat and survives colour
     const e = editor();
     selection(e);
     e.annotations.push(flat);
+    e.setTool('select');
     e.pointerDown({ x: 140, y: 80 });
     e.pointerUp({ x: 140, y: 80 });
     assert.equal(e.selectedId, 9);
@@ -668,4 +670,135 @@ test('an annotation without the gradient field reads as flat and survives colour
     assert.equal(e.annotations[0].gradient, undefined);
     assert.equal(e.undo(), true);
     assert.deepEqual(e.annotations, [before]);
+});
+
+test('handle hit tolerance includes eight pixels and chooses the nearest overlapping handle', () => {
+    const rect = { x: 20, y: 20, width: 100, height: 100 };
+    assert.equal(handleAt(rect, { x: 12, y: 20 }), 'nw');
+    assert.equal(handleAt(rect, { x: 11, y: 20 }), null);
+    assert.equal(handleAt({ x: 0, y: 0, width: 10, height: 100 }, { x: 9, y: 0 }), 'ne');
+    const e = editor();
+    selection(e);
+    draw(e, 'arrow');
+    e.selectedId = e.annotations[0].id;
+    assert.equal(e.hitTarget({ x: 72, y: 80 }).handle, 'start');
+    assert.notEqual(e.hitTarget({ x: 71, y: 80 }).kind, 'annotation-handle');
+});
+
+test('hit targets mirror pointer-down priorities without changing editor state', () => {
+    const e = editor();
+    assert.deepEqual(e.hitTarget({ x: 20, y: 20 }), { kind: 'none' });
+    selection(e);
+    draw(e, 'rectangle');
+    const annotation = e.annotations[0];
+    const cases = [
+        [{ x: 20, y: 20 }, 'selection-handle', 'selection-resize'],
+        [{ x: 140, y: 80 }, 'annotation', 'annotation-move'],
+        [{ x: 300, y: 200 }, 'selection', 'selection-move'],
+        [{ x: 490, y: 390 }, 'outside', null],
+    ];
+    for (const [point, kind, gesture] of cases) {
+        e.selectedId = null;
+        const before = JSON.stringify(e);
+        assert.equal(e.hitTarget(point).kind, kind);
+        assert.equal(JSON.stringify(e), before);
+        e.pointerDown(point);
+        assert.equal(e.interaction, gesture);
+        e.pointerUp(point);
+    }
+    e.selectedId = annotation.id;
+    assert.deepEqual(e.hitTarget({ x: 80, y: 80 }), { kind: 'annotation-handle', handle: 'nw' });
+    e.pointerDown({ x: 80, y: 80 });
+    assert.equal(e.interaction, 'annotation-resize');
+    assert.equal(e.interactionHandle, 'nw');
+    e.pointerUp({ x: 80, y: 80 });
+    assert.equal(e.interactionHandle, null);
+    e.setTool('arrow');
+    for (const [point, kind, gesture] of [
+        [{ x: 20, y: 20 }, 'selection-handle', 'selection-resize'],
+        [{ x: 80, y: 80 }, 'canvas', 'draw'],
+        [{ x: 490, y: 390 }, 'outside', null],
+    ]) {
+        assert.equal(e.hitTarget(point).kind, kind);
+        e.pointerDown(point);
+        assert.equal(e.interaction, gesture);
+        e.pointerUp(point);
+    }
+});
+
+test('idle (no tool): only the selection handles act; inside and annotations are inert', () => {
+    const e = editor();
+    selection(e);
+    draw(e, 'rectangle');
+    draw(e, 'text', { x: 90, y: 200 }, { x: 90, y: 200 });
+    e.setTool(null);
+    const ann = JSON.stringify(e.annotations);
+    const rect = { ...e.selection };
+    const inert = [
+        { x: 300, y: 200 },
+        { x: 140, y: 80 },
+        { x: 80, y: 80 },
+    ];
+    for (const point of inert) {
+        assert.equal(e.hitTarget(point).kind, 'inert');
+        assert.equal(e.pointerDown(point, { clickCount: 2 }), null);
+        assert.equal(e.interaction, null);
+        e.pointerMove({ x: point.x + 40, y: point.y + 30 });
+        e.pointerUp({ x: point.x + 40, y: point.y + 30 });
+        assert.equal(e.selectedId, null);
+        assert.deepEqual(e.selection, rect);
+        assert.equal(JSON.stringify(e.annotations), ann);
+    }
+    assert.equal(e.hitTarget({ x: 490, y: 390 }).kind, 'outside');
+    assert.equal(e.hitTarget({ x: 20, y: 20 }).kind, 'selection-handle');
+    drag(e, { x: 400, y: 350 }, { x: 380, y: 340 });
+    assert.deepEqual(e.selection, { x: 20, y: 20, width: 360, height: 320 });
+    assert.equal(e.selectedId, null);
+    // Keyboard nudge, delete and escape keep working without a selected annotation.
+    e.nudge(5, 0);
+    assert.equal(e.selection.x, 25);
+    assert.equal(e.deleteSelected(), false);
+    assert.equal(e.escape(), 'close');
+});
+
+test('idle: selecting a window or monitor still works before a selection exists', () => {
+    const e = editor();
+    assert.equal(e.tool, null);
+    drag(e, { x: 40, y: 40 }, { x: 44, y: 40 });
+    assert.deepEqual(e.selection, windows[1]);
+});
+
+test('select tool: choosing it enables select, move and resize; leaving it clears the selection', () => {
+    const e = editor();
+    selection(e);
+    draw(e, 'rectangle');
+    e.setTool('select');
+    assert.equal(e.hitTarget({ x: 140, y: 80 }).kind, 'annotation');
+    assert.equal(e.hitTarget({ x: 300, y: 200 }).kind, 'selection');
+    drag(e, { x: 300, y: 200 }, { x: 310, y: 210 });
+    assert.equal(e.selection.x, 30);
+    e.pointerDown({ x: 140, y: 80 });
+    e.pointerUp({ x: 140, y: 80 });
+    assert.equal(e.selectedId, e.annotations[0].id);
+    assert.equal(e.hitTarget({ x: 80, y: 80 }).kind, 'annotation-handle');
+    e.setTool(null);
+    assert.equal(e.selectedId, null);
+    assert.equal(e.hitTarget({ x: 140, y: 80 }).kind, 'inert');
+});
+
+test('cursor model matches the press for idle and select', async () => {
+    const { cursorFor } = await import('../src/ui/cursorModel.js');
+    const e = editor();
+    assert.equal(cursorFor({ target: e.hitTarget({ x: 5, y: 5 }), tool: e.tool }), 'crosshair');
+    selection(e);
+    draw(e, 'rectangle');
+    const at = (point) => cursorFor({ target: e.hitTarget(point), tool: e.tool });
+    const probes = { inside: { x: 300, y: 200 }, annotation: { x: 140, y: 80 }, handle: { x: 400, y: 350 } };
+    e.setTool(null);
+    assert.deepEqual(
+        [at(probes.inside), at(probes.annotation), at(probes.handle)],
+        ['default', 'default', 'nwse-resize'],
+    );
+    e.setTool('select');
+    assert.deepEqual([at(probes.inside), at(probes.annotation), at(probes.handle)], ['move', 'move', 'nwse-resize']);
 });

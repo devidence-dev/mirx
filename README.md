@@ -68,24 +68,25 @@ Updating works the same way: install the new package, then log out and in.
 
 Press **Alt+Shift+X**, or choose **Take screenshot** from the top bar icon menu (left or right click; the item shows your current shortcut). You can hide the icon in Preferences; the shortcut still works. The screen freezes. Hover to preview what a click would pick (a window, or the whole monitor where there is no window), then drag, click or press Ctrl+A. Annotate, then copy or save.
 
-Annotations keep their screen position when you adjust the selection.
+Annotations keep their screen position when you adjust the selection. Each annotation has a subtle shadow that follows its visible shape; shadows appear in exports and are clipped to the selection along with the annotations.
 
 ## ⌨️ Keyboard shortcuts
 
-| Key                              | Action                                                    |
-| -------------------------------- | --------------------------------------------------------- |
-| Alt+Shift+X                      | Open the capture (configurable)                           |
-| Ctrl+A                           | Select the monitor under the pointer                      |
-| Arrow keys / Shift+arrow keys    | Move / resize the selection by one pixel                  |
-| Ctrl+C / Ctrl+S                  | Copy to clipboard / save to file                          |
-| Enter                            | Run the configured Enter action (copy or save)            |
-| Ctrl+Z / Ctrl+Shift+Z            | Undo / redo                                               |
-| Delete                           | Delete the selected annotation                            |
-| Esc                              | Cancel text, deselect an annotation, or close the capture |
-| Shift (while drawing an ellipse) | Perfect circle                                            |
-| Enter / Shift+Enter (text)       | Confirm / add a new line                                  |
+| Key                              | Action                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| Alt+Shift+X                      | Open the capture (configurable)                                                             |
+| V / A / R / E / N / H / P / T    | Select/move / arrow / rectangle / ellipse / numbered marker / highlighter / pixelate / text |
+| Ctrl+A                           | Select the monitor under the pointer                                                        |
+| Arrow keys / Shift+arrow keys    | Move / resize the selection by one pixel                                                    |
+| Ctrl+C / Ctrl+S                  | Copy to clipboard / save to file                                                            |
+| Enter                            | Run the configured Enter action (copy or save)                                              |
+| Ctrl+Z / Ctrl+Shift+Z            | Undo / redo                                                                                 |
+| Delete                           | Delete the selected annotation (select/move tool)                                           |
+| Esc                              | Cancel text, deselect an annotation, or close the capture                                   |
+| Shift (while drawing an ellipse) | Perfect circle                                                                              |
+| Enter / Shift+Enter (text)       | Confirm / add a new line                                                                    |
 
-Mouse: drag the eight handles to resize the selection, or drag its empty interior to move it. With the select tool (↖), click an annotation to edit it, or double-click text to change its content.
+Mouse: a new capture has no tool chosen (nothing highlighted). In that idle state the cursor is the normal arrow inside the selection, dragging inside does nothing, and only the eight handles resize the selection. Choose the select/move tool (click it or press V) to drag the selection by its empty interior, click an annotation to select, move or resize it, or double-click text to change its content.
 
 ## ⚙️ Preferences
 

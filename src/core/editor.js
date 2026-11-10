@@ -8,6 +8,7 @@ import {
     resizeRect,
     handleAt,
     markerRadius,
+    HANDLE_HIT,
 } from './geometry.js';
 import { CommandHistory } from './history.js';
 
@@ -157,6 +158,38 @@ export class Editor {
         return this._gesture?.kind ?? null;
     }
 
+    get interactionHandle() {
+        return this._gesture?.handle ?? null;
+    }
+
+    hitTarget(point) {
+        if (!this.selection) return { kind: 'none' };
+        const selectionHandle = handleAt(this.selection, point);
+        if (this.tool === null) return this._hitIdle(point, selectionHandle);
+        if (this.tool !== 'select') return this._hitDrawing(point, selectionHandle);
+        const selected = this._selected();
+        if (selected && !['text', 'marker'].includes(selected.type)) {
+            const handle = this._selectedHandleAt(selected, point);
+            if (handle) return { kind: 'annotation-handle', handle };
+        }
+        if (selectionHandle) return { kind: 'selection-handle', handle: selectionHandle };
+        const hit = [...this.annotations].reverse().find((annotation) => annotationHit(annotation, point));
+        if (hit) return { kind: 'annotation', id: hit.id };
+        return { kind: contains(this.selection, point) ? 'selection' : 'outside' };
+    }
+
+    // Idle: only the selection handles react; everything else inside the selection is inert.
+    _hitIdle(point, selectionHandle) {
+        if (selectionHandle) return { kind: 'selection-handle', handle: selectionHandle };
+        return { kind: contains(this.selection, point) ? 'inert' : 'outside' };
+    }
+
+    _hitDrawing(point, selectionHandle) {
+        if (selectionHandle && !inside(this.selection, point))
+            return { kind: 'selection-handle', handle: selectionHandle };
+        return { kind: contains(this.selection, point) ? 'canvas' : 'outside' };
+    }
+
     _monitorAt(point) {
         // Half-open boundaries assign a shared monitor edge to exactly one monitor.
         return (
@@ -214,8 +247,9 @@ export class Editor {
 
     pointerDown(point, { clickCount = 1 } = {}) {
         if (!this.selection) return this._beginSelect(point);
-        if (this.tool) return this._pointerDownWithTool(point);
-        return this._pointerDownIdle(point, clickCount);
+        if (this.tool === null) return this._pointerDownIdle(point);
+        if (this.tool === 'select') return this._pointerDownSelect(point, clickCount);
+        return this._pointerDownWithTool(point);
     }
 
     _beginSelect(point) {
@@ -261,11 +295,19 @@ export class Editor {
 
     _selectedHandleAt(selected, point) {
         if (selected.type !== 'arrow') return handleAt(annotationRect(selected), point);
-        if (distance(point, startOf(selected)) <= 7) return 'start';
-        return distance(point, endOf(selected)) <= 7 ? 'end' : null;
+        if (distance(point, startOf(selected)) <= HANDLE_HIT) return 'start';
+        return distance(point, endOf(selected)) <= HANDLE_HIT ? 'end' : null;
     }
 
-    _pointerDownIdle(point, clickCount) {
+    // Idle (no tool): only the eight selection handles act; nothing else is selectable or movable.
+    _pointerDownIdle(point) {
+        const handle = handleAt(this.selection, point);
+        if (handle) this._gesture = { kind: 'selection-resize', handle, start: point, original: { ...this.selection } };
+        return null;
+    }
+
+    // The Select and move tool: select, move and resize annotations, move and resize the selection.
+    _pointerDownSelect(point, clickCount) {
         const selected = this._selected();
         if (selected && !['text', 'marker'].includes(selected.type)) {
             const handle = this._selectedHandleAt(selected, point);

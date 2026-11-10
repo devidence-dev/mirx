@@ -62,16 +62,21 @@ The repository SHALL contain a `LICENSE` file with the full unmodified text of t
 
 ### Requirement: The installable zip contains only runtime files
 
-The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, the schema XML under `schemas/`, the runtime sources under `src/` and the top bar icon `icons/mirx-symbolic.svg`. It SHALL NOT contain `schemas/gschemas.compiled`, the colour logo `icons/mirx.svg`, any other file under `icons/`, tests, scripts, `node_modules`, `dist`, tooling configuration or `openspec`. A `LICENSE` file SHALL NOT be required inside the zip.
+The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, the schema XML under `schemas/`, the runtime sources under `src/`, the top bar icon `icons/mirx-symbolic.svg` and every toolbar icon under `icons/tools/`. It SHALL NOT contain `schemas/gschemas.compiled`, the colour logo `icons/mirx.svg`, any other file under `icons/`, tests, scripts, `node_modules`, `dist`, tooling configuration or `openspec`. A `LICENSE` file SHALL NOT be required inside the zip.
 
 #### Scenario: Runtime files are present
 - **WHEN** the zip is listed
-- **THEN** it includes `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, `schemas/org.gnome.shell.extensions.mirx.gschema.xml`, `icons/mirx-symbolic.svg` and every file under `src/`
+- **THEN** it includes `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.css`, `schemas/org.gnome.shell.extensions.mirx.gschema.xml`, `icons/mirx-symbolic.svg`, every `icons/tools/*-symbolic.svg` file of the toolbar icon set and every file under `src/`
 
 #### Scenario: Only the symbolic icon is packaged
 - **WHEN** the zip is listed
-- **THEN** `icons/mirx-symbolic.svg` is the only entry under `icons/`
+- **THEN** every entry under `icons/` is `icons/mirx-symbolic.svg` or a `-symbolic.svg` file directly under `icons/tools/`
 - **AND** no entry is `icons/mirx.svg` or `icons/README.txt`
+
+#### Scenario: Every toolbar icon is packaged
+- **GIVEN** each toolbar control that shows an icon names one file under `icons/tools/`
+- **WHEN** the zip is listed
+- **THEN** every one of those files is present, and no other file is under `icons/tools/`
 
 #### Scenario: No compiled schema
 - **WHEN** the zip is listed
@@ -93,7 +98,7 @@ The zip SHALL contain `extension.js`, `prefs.js`, `metadata.json`, `stylesheet.c
 - **THEN** the installed extension directory contains `schemas/gschemas.compiled` and preferences load
 
 #### Scenario: Missing icon fails the pack
-- **GIVEN** `icons/mirx-symbolic.svg` is missing
+- **GIVEN** `icons/mirx-symbolic.svg` or a toolbar icon file is missing
 - **WHEN** `npm run pack` runs
 - **THEN** it fails naming the missing file and writes no zip
 
@@ -130,4 +135,4 @@ The repository SHALL keep the colour logo at `icons/mirx.svg`, and the top of `R
 
 #### Scenario: Notes file is gone
 - **WHEN** the `icons/` folder is listed
-- **THEN** it holds `mirx.svg` and `mirx-symbolic.svg` and no `README.txt`
+- **THEN** it holds `mirx.svg`, `mirx-symbolic.svg` and the `tools/` folder of toolbar icons, and no `README.txt`

@@ -29,6 +29,7 @@ import {
     PIXELATE_CODE,
     PIXELATE_DECLARATIONS,
 } from './shaders.js';
+import { AnnotationShadow } from './annotationShadow.js';
 
 export function setUniforms(effect, values) {
     effect.locations ??= new Map();
@@ -218,6 +219,7 @@ function syncHidden(entry, annotation, editingId) {
     const hidden = Boolean(entry.empty || (annotation.type === 'text' && annotation.id === editingId));
     if (hidden === entry.hidden) return;
     entry.hidden = hidden;
+    entry.dropShadow.setVisible(!hidden);
     if (hidden) entry.actor.hide();
     else entry.actor.show();
 }
@@ -285,6 +287,8 @@ export class AnnotationActors {
             hidden: false,
         };
         if (effect) (disc ?? actor).add_effect(effect);
+        entry.dropShadow = new AnnotationShadow(disc ?? actor);
+        this.actor.add_child(entry.dropShadow.actor);
         this.actor.add_child(actor);
         return entry;
     }
@@ -325,6 +329,24 @@ export class AnnotationActors {
         entry.effect.color = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255);
         entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
         entry.actor.queue_redraw();
+    }
+
+    _shadowRect(entry, annotation, selection) {
+        switch (annotation.type) {
+            case 'arrow':
+                return arrowBounds(annotation);
+            case 'marker':
+                return markerDisc(annotation, 1, this._physicalScale).rect;
+            case 'pixelate':
+                return pixelateGeometry(annotation, selection, this._stage).rect;
+            case 'text': {
+                const [, width] = entry.actor.get_preferred_width(-1);
+                const [, height] = entry.actor.get_preferred_height(width);
+                return { x: annotation.x1, y: annotation.y1, width, height };
+            }
+            default:
+                return rectangleGeometry(annotation);
+        }
     }
 
     _updateMarker(entry, annotation, color, width, number) {
@@ -371,6 +393,7 @@ export class AnnotationActors {
         const ids = new Set(annotations.map((annotation) => annotation.id));
         for (const [id, entry] of this._entries) {
             if (!ids.has(id)) {
+                entry.dropShadow.destroy();
                 entry.actor.destroy();
                 this._entries.delete(id);
             }
@@ -390,7 +413,7 @@ export class AnnotationActors {
         return JSON.stringify([
             annotation,
             annotation.type === 'pixelate' ? selection : null,
-            annotation.type === 'circle' || annotation.type === 'marker' ? this._physicalScale : null,
+            this._physicalScale,
             annotation.type === 'marker' ? numbers.get(annotation.id) : null,
         ]);
     }
@@ -400,8 +423,9 @@ export class AnnotationActors {
         if (order === this._order) return;
         let previous = null;
         for (const annotation of annotations) {
-            const actor = this._entries.get(annotation.id).actor;
-            this.actor.set_child_above_sibling(actor, previous);
+            const { actor, dropShadow } = this._entries.get(annotation.id);
+            this.actor.set_child_above_sibling(dropShadow.actor, previous);
+            this.actor.set_child_above_sibling(actor, dropShadow.actor);
             previous = actor;
         }
         this._order = order;
@@ -417,6 +441,7 @@ export class AnnotationActors {
             const key = this._entryKey(annotation, selection, numbers);
             if (entry.key !== key) {
                 this._updateEntry(entry, annotation, selection, numbers.get(annotation.id));
+                entry.dropShadow.update(this._shadowRect(entry, annotation, selection), this._physicalScale);
                 entry.key = key;
             }
             syncHidden(entry, annotation, editingId);
@@ -425,9 +450,6 @@ export class AnnotationActors {
     }
 
     prepareExport() {
-        for (const entry of this._entries.values()) {
-            if (entry.type === 'circle' || entry.type === 'pixelate') entry.actor.get_allocation_box();
-            else if (entry.type === 'marker') entry.disc.get_allocation_box();
-        }
+        for (const entry of this._entries.values()) entry.dropShadow.prepareExport();
     }
 }

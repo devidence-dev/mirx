@@ -63,7 +63,9 @@ export function handles({ x, y, width: w, height: h }) {
     ];
 }
 
-export function handleAt(rect, point, tolerance = 7) {
+export const HANDLE_HIT = 8;
+
+export function handleAt(rect, point, tolerance = HANDLE_HIT) {
     return (
         handles(rect)
             .filter((handle) => Math.abs(handle.x - point.x) <= tolerance && Math.abs(handle.y - point.y) <= tolerance)

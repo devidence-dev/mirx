@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { Editor } from '../src/core/editor.js';
 import { contains, handles, physicalRect } from '../src/core/geometry.js';
 import { decorationRect } from '../src/ui/decorations.js';
+import { cursorFor } from '../src/ui/cursorModel.js';
 
 class Actor {
     constructor(properties = {}) {
@@ -33,8 +34,12 @@ class Actor {
         return [0, 10];
     }
     set_cursor_type() {}
-    set_position() {}
-    set_size() {}
+    set_position(x, y) {
+        this.position = [x, y];
+    }
+    set_size(width, height) {
+        this.size = [width, height];
+    }
     show() {
         this.visible = true;
     }
@@ -61,6 +66,13 @@ class Stub {
     }
     update() {}
     place() {}
+    hideNow() {
+        this.hides = (this.hides ?? 0) + 1;
+        this.actor.hide();
+    }
+    destroy() {
+        this.actor.destroy();
+    }
 }
 const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
     .replace(/^import [^;]*;\n/gm, '')
@@ -79,21 +91,27 @@ function fixture() {
             EVENT_PROPAGATE: 'propagate',
             BUTTON_PRIMARY: 1,
             CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 },
+            PickMode: { REACTIVE: 1 },
             ModifierType: { SHIFT_MASK: 1 },
             EventType: { KEY_PRESS: 1, MOTION: 2, BUTTON_RELEASE: 3 },
         },
         GLib: {},
         Shell: {},
         St: { Widget: Actor, Label: Actor },
-        global: { get_pointer: () => [10, 20], stage: { width: 2080, height: 820, get_event_actor: () => null } },
+        global: {
+            get_pointer: () => [10, 20],
+            stage: { width: 2080, height: 820, get_event_actor: () => null, get_actor_at_pos: () => null },
+        },
         contains,
         handles,
         physicalRect,
         decorationRect,
+        cursorFor,
         textFont: () => 'Sans',
         AnnotationActors: Stub,
         DecorationActors: Stub,
         Toolbar: Stub,
+        Tooltip: Stub,
         Magnifier: Aid,
         AlignmentGuides: Aid,
         console,
@@ -142,15 +160,19 @@ test('guides sit above annotations and shades, below frame, handles, labels, too
     ])
         assert.ok(index(below) < guides);
     for (const above of [
+        overlay._frameRing,
         overlay._frame,
         ...overlay._handles,
         overlay._dimensions,
         overlay._hint,
         overlay._error,
         overlay._toolbar.actor,
+        overlay._tooltip.actor,
         overlay._magnifier.actor,
     ])
         assert.ok(index(above) > guides);
+    assert.ok(index(overlay._toolbar.actor) < index(overlay._tooltip.actor));
+    assert.ok(index(overlay._tooltip.actor) < index(overlay._magnifier.actor));
 });
 
 test('state matrix: initial, creation, completion, interior move, resize, tools, text, busy', () => {
@@ -168,13 +190,19 @@ test('state matrix: initial, creation, completion, interior move, resize, tools,
     overlay._release(event(300.7, 200.2));
     assert.deepEqual(plain(editor.selection), { x: 100, y: 50, width: 200, height: 150 });
     assertShared(f, false);
-    overlay._press(event(200, 120)); // interior move
+    overlay._press(event(200, 120)); // idle: an interior press does nothing
+    assert.equal(editor.interaction, null);
+    assertShared(f, false);
+    overlay._release(event(200, 120));
+    editor.setTool('select');
+    overlay._press(event(200, 120)); // interior move needs Select and move
     assert.equal(editor.interaction, 'selection-move');
     assertShared(f, false);
     overlay._motion(event(210, 130));
     assertShared(f, false);
     overlay._release(event(210, 130));
     assertShared(f, false);
+    editor.setTool(null);
     const { x, y, width, height } = editor.selection;
     overlay._press(event(x + width, y + height)); // resize by the south-east handle
     assert.equal(editor.interaction, 'selection-resize');
@@ -263,4 +291,39 @@ test('destroying the overlay destroys the guides and leaves none visible', () =>
     const f = fixture();
     f.overlay.destroy();
     assert.equal(f.overlay._guides.actor.destroyed, true);
+    assert.equal(f.overlay._tooltip.actor.destroyed, true);
+    assert.equal(f.overlay._toolbar.actor.destroyed, true);
+});
+
+test('selection loss and busy state immediately hide the tooltip', () => {
+    const { overlay, editor } = fixture();
+    editor.selectMonitor({ x: 10, y: 10 });
+    overlay._refresh();
+    overlay._tooltip.actor.show();
+    overlay.setBusy(true);
+    assert.equal(overlay._tooltip.actor.visible, false);
+    overlay._tooltip.actor.show();
+    editor.selection = null;
+    overlay._refresh();
+    assert.equal(overlay._tooltip.actor.visible, false);
+    assert.equal(overlay._toolbar.actor.visible, false);
+});
+
+test('selection frame keeps its bounds and 10 px handles stay centred', () => {
+    const { overlay, editor } = fixture();
+    editor.selectMonitor({ x: 10, y: 10 });
+    overlay._refresh();
+    const selection = editor.selection;
+    assert.deepEqual(overlay._frame.position, [selection.x, selection.y]);
+    assert.deepEqual(overlay._frame.size, [selection.width, selection.height]);
+    // The dark ring sits one pixel outside the frame and below it, never over the selection interior.
+    assert.deepEqual(overlay._frameRing.position, [selection.x - 1, selection.y - 1]);
+    assert.deepEqual(overlay._frameRing.size, [selection.width + 2, selection.height + 2]);
+    assert.ok(overlay.actor.children.indexOf(overlay._frameRing) < overlay.actor.children.indexOf(overlay._frame));
+    handles(selection).forEach((point, index) => {
+        const handle = overlay._handles[index];
+        assert.equal(handle.width, 10);
+        assert.equal(handle.height, 10);
+        assert.deepEqual(handle.position, [point.x - 5, point.y - 5]);
+    });
 });

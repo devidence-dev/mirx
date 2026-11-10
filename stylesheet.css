@@ -1,46 +1,89 @@
-/* Liquid glass: the blur comes from Shell.BlurEffect in toolbar.js, St has no backdrop-filter.
-   The tint stays dark enough to keep the labels readable over any capture. */
+/* Toolbar tint and blur are selected together by toolbar.js. */
 .mirx-toolbar {
-    background-color: rgba(20, 24, 32, 0.45);
-    color: #eaf2f8;
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(58, 62, 74, 0.62);
+    background-gradient-end: rgba(22, 24, 32, 0.62);
+    color: #ffffff;
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 12px;
-    padding: 8px;
-    spacing: 6px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    padding: 12px;
+    spacing: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.mirx-toolbar-solid {
+    background-gradient-start: rgba(46, 50, 62, 0.9);
+    background-gradient-end: rgba(24, 26, 34, 0.92);
 }
 .mirx-row {
-    spacing: 5px;
+    spacing: 0px;
 }
-.mirx-tool-label {
-    color: #c9d8e2;
-    font-size: 11px;
+.mirx-group {
+    spacing: 4px;
+}
+.mirx-divider {
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+    height: 20px;
+    margin-left: 5px;
+    margin-right: 6px;
 }
 .mirx-button {
-    border-radius: 8px;
-    padding: 6px 9px;
-    min-width: 18px;
-    background-color: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid transparent;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
     color: #ffffff;
+    transition-duration: 120ms;
+    -st-icon-style: symbolic;
 }
-.mirx-button:hover,
-.mirx-button:focus {
+.mirx-icon-button {
+    width: 36px;
+    height: 36px;
+}
+.mirx-width-value {
+    min-width: 44px;
+    text-align: center;
+}
+.mirx-button:hover {
     background-color: rgba(255, 255, 255, 0.18);
 }
+.mirx-button:active {
+    background-color: rgba(255, 255, 255, 0.26);
+}
 .mirx-button:checked {
-    background-color: rgba(10, 132, 255, 0.5);
-    border-color: rgba(145, 198, 255, 0.9);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    background-color: rgba(10, 132, 255, 0.55);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+.mirx-button:focus {
+    box-shadow: inset 0 0 0 2px #ffffff;
+}
+.mirx-button:disabled {
+    color: rgba(255, 255, 255, 0.4);
+}
+.mirx-primary {
+    background-color: rgb(0, 102, 214);
+    color: #ffffff;
+    font-weight: 600;
+}
+.mirx-primary:hover {
+    background-color: rgb(20, 120, 235);
+}
+.mirx-primary:active {
+    background-color: rgb(0, 84, 184);
 }
 .mirx-swatch {
-    min-width: 12px;
-    padding: 3px;
+    padding: 0;
+    border-radius: 14px;
     border: 2px solid rgba(255, 255, 255, 0.25);
 }
 .mirx-swatch:checked {
     border-color: #ffffff;
+}
+.mirx-tooltip {
+    background-color: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 6px 12px;
 }
 .mirx-dimensions,
 .mirx-hint {
@@ -81,14 +124,21 @@
     min-height: 24px;
 }
 .mirx-shade {
-    background-color: rgba(0, 0, 0, 0.48);
+    background-color: rgba(0, 0, 0, 0.6);
 }
 .mirx-frame {
-    border: 1px solid rgb(51, 166, 255);
+    border: 2px solid rgb(51, 166, 255);
+}
+.mirx-frame-ring {
+    border: 1px solid rgba(0, 0, 0, 0.45);
 }
 .mirx-handle {
     background-color: #ffffff;
-    border: 1px solid rgb(26, 115, 255);
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    border: 2px solid rgb(10, 132, 255);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .mirx-annotation-box {
     border: 1px solid rgba(255, 255, 255, 0.8);

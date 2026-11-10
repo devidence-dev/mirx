@@ -21,7 +21,12 @@ export default class MirxExtension extends Extension {
             capture: new ScreenCapture(),
             createEditor: (options) =>
                 new Editor({ ...options, measureText: ({ text, width }) => measureText(text, width) }),
-            createView: (options) => new Overlay({ ...options, perfLog: () => this._settings.get_boolean('perf-log') }),
+            createView: (options) =>
+                new Overlay({
+                    ...options,
+                    iconDir: `${this.path}/icons/tools`,
+                    perfLog: () => this._settings.get_boolean('perf-log'),
+                }),
             output: new GpuImageOutput({ notify: (title, body) => Main.notify(title, body) }),
             settings: () => ({
                 color: this._settings.get_string('default-color'),

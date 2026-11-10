@@ -13,7 +13,7 @@ export class DecorationActors {
         this.actor.add_child(this._box);
         this._ring = 0;
         this._handles = Array.from({ length: 8 }, () =>
-            createActor({ style_class: 'mirx-handle', width: 8, height: 8, visible: false }),
+            createActor({ style_class: 'mirx-handle', width: 10, height: 10, visible: false }),
         );
         this._handles.forEach((handle) => {
             this.actor.add_child(handle);
@@ -63,7 +63,7 @@ export class DecorationActors {
         }
         this._handles.forEach((handle, i) => {
             if (points[i]) {
-                handle.set_position(points[i].x - 4, points[i].y - 4);
+                handle.set_position(points[i].x - 5, points[i].y - 5);
                 handle.show();
             } else {
                 handle.hide();
