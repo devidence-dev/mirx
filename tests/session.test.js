@@ -147,7 +147,7 @@ test('settings are read after capture and again when saving', async () => {
     f.captures[0].resolve(snapshot);
     await opening;
     const view = f.views[0];
-    assert.deepEqual(view.editor.style, {color: '#00ff00', width: 6});
+    assert.deepEqual(view.editor.style, {color: '#00ff00', width: 6, gradient: false});
     select(view);
     const latest = {color: '#0000ff', width: 9, enterAction: 'copy', folder: '/latest'};
     f.setConfig(latest);

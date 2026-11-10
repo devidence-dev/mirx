@@ -37,3 +37,24 @@ test('annotation decorations reuse actors and hide unused handles', () => {
     assert.equal(box.visible, false);
     assert.ok(decorations._handles.every(handle => !handle.visible));
 });
+
+test('a selected marker shows a blue ring 4 px outside its bounds, with no handles', () => {
+    const createActor = options => ({...options, children: [],
+        add_child(child) { this.children.push(child); },
+        set_position(x, y) { this.position = [x, y]; },
+        set_size(width, height) { this.size = [width, height]; },
+        set_style(style) { this.style = style; },
+        show() { this.visible = true; }, hide() { this.visible = false; }});
+    const decorations = new DecorationActors({width: 500, height: 400, createActor});
+    const marker = {id: 1, type: 'marker', x1: 50, y1: 60, x2: 50, y2: 60, width: 3, color: '#ff0000'};
+    decorations.update({annotations: [marker], selectedId: 1});
+    assert.equal(decorations._box.visible, true);
+    assert.deepEqual(decorations._box.position, [34, 44]);
+    assert.deepEqual(decorations._box.size, [32, 32]);
+    assert.match(decorations._box.style, /border-radius: 16px/);
+    assert.match(decorations._box.style, /rgb\(26, 115, 255\)/);
+    assert.ok(decorations._handles.every(handle => !handle.visible));
+    const arrow = {id: 2, type: 'arrow', x1: 10, y1: 20, x2: 40, y2: 50, width: 3};
+    decorations.update({annotations: [marker, arrow], selectedId: 2});
+    assert.equal(decorations._box.style, null);
+});

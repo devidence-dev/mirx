@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt, physicalRect, alignedPaintRect} from '../src/core/geometry.js';
-import {Editor, annotationHit} from '../src/core/editor.js';
+import {contains, inside, intersect, fromPoints, clampPoint, moveRect, resizeRect, handles, handleAt, physicalRect, alignedPaintRect, markerRadius} from '../src/core/geometry.js';
+import {Editor, annotationHit, annotationRect, markerNumbers, supportsGradient} from '../src/core/editor.js';
 
 test('selection handles remain available while an annotation tool is active', () => {
     const e = new Editor({monitors: [{x: 0, y: 0, width: 800, height: 600}]});
@@ -34,7 +34,19 @@ test('geometry normalizes, clips, moves, and exposes eight handles',()=>{
 test('hover and click choose topmost window clipped to the starting monitor',()=>{
  const e=editor(); e.pointerMove({x:470,y:50}); assert.deepEqual(e.hover,{x:450,y:30,width:50,height:100});
  drag(e,{x:470,y:50},{x:472,y:52}); assert.deepEqual(e.selection,{x:450,y:30,width:50,height:100});
- const blank=editor(); drag(blank,{x:400,y:300},{x:400,y:300}); assert.equal(blank.selection,null);
+});
+test('click on empty space selects the monitor under the pointer and hover previews it',()=>{
+ const rect=({scale,...r})=>r, m0=rect(monitors[0]), m1=rect(monitors[1]);
+ const e=editor(); e.pointerMove({x:400,y:300}); assert.deepEqual(e.hover,m0);
+ e.pointerMove({x:600,y:300}); assert.deepEqual(e.hover,m1);
+ e.pointerMove({x:470,y:50}); assert.deepEqual(e.hover,{x:450,y:30,width:50,height:100});
+ e.pointerMove({x:900,y:900}); assert.equal(e.hover,null);
+ drag(e,{x:400,y:300},{x:402,y:301}); assert.deepEqual(e.selection,m0); assert.equal(e.monitor,monitors[0]); assert.equal(e.hover,null);
+ e.pointerMove({x:600,y:300}); assert.equal(e.hover,null);
+ const top=editor(); drag(top,{x:700,y:5},{x:700,y:5}); assert.deepEqual(top.selection,m1);
+ const win=editor(); drag(win,{x:100,y:100},{x:100,y:100}); assert.deepEqual(win.selection,windows[1]);
+ const free=editor(); drag(free,{x:300,y:300},{x:600,y:380}); assert.deepEqual(free.selection,{x:300,y:300,width:200,height:80});
+ const outside=editor(); drag(outside,{x:900,y:900},{x:900,y:900}); assert.equal(outside.selection,null);
 });
 test('selection drag and movement stay on starting monitor without moving annotations',()=>{
  const e=editor(); drag(e,{x:400,y:300},{x:800,y:-10}); assert.deepEqual(e.selection,{x:400,y:0,width:100,height:300});
@@ -177,4 +189,240 @@ test('alignedPaintRect covers the physical rect with a grid-aligned logical orig
     assert.deepEqual(alignedPaintRect(p, 1.25), {rect: {x: 8, y: 4, width: 604, height: 404}, offsetX: 3, offsetY: 4});
     // 1.37 has no q in 1..16 with q*scale within 1e-4 of an integer.
     assert.equal(alignedPaintRect({x: 14, y: 10, width: 822, height: 548}, 1.37), null);
+});
+
+const place = (e, point) => { e.pointerDown(point); e.pointerUp(point); };
+const labels = e => [...markerNumbers(e.annotations).values()];
+
+test('marker radius, hit boundary and numbering ignore other annotation types', () => {
+    assert.equal(markerRadius(1), 10);
+    assert.equal(markerRadius(3), 12);
+    assert.equal(markerRadius(30), 120);
+    const marker = {id: 1, type: 'marker', color: '#ff0000', width: 3, x1: 100, y1: 100, x2: 100, y2: 100};
+    assert.deepEqual(annotationRect(marker), {x: 88, y: 88, width: 24, height: 24});
+    assert.equal(annotationHit(marker, {x: 112, y: 100}), true);
+    assert.equal(annotationHit(marker, {x: 113, y: 100}), false);
+    assert.equal(annotationHit(marker, {x: 108, y: 108}), true);
+    assert.equal(annotationHit(marker, {x: 110, y: 110}), false);
+    const annotations = [
+        marker,
+        {id: 2, type: 'arrow', width: 3, x1: 0, y1: 0, x2: 10, y2: 10},
+        {id: 3, type: 'marker', width: 3, x1: 50, y1: 50, x2: 50, y2: 50},
+        {id: 4, type: 'text', width: 3, x1: 0, y1: 0, x2: 10, y2: 10, text: 'a'},
+        {id: 5, type: 'rectangle', width: 3, x1: 0, y1: 0, x2: 10, y2: 10},
+        {id: 6, type: 'marker', width: 3, x1: 70, y1: 70, x2: 70, y2: 70},
+    ];
+    assert.deepEqual([...markerNumbers(annotations)], [[1, 1], [3, 2], [6, 3]]);
+    assert.deepEqual([...markerNumbers([])], []);
+});
+
+test('numbered markers place inside the selection and each click is one undo step', () => {
+    const e = editor();
+    selection(e);
+    e.setTool('marker');
+    for (const p of [{x: 100, y: 100}, {x: 200, y: 150}, {x: 300, y: 200}]) place(e, p);
+    assert.deepEqual(labels(e), [1, 2, 3]);
+    assert.deepEqual(e.annotations.map(a => [a.type, a.x1, a.y1, a.x2, a.y2]),
+        [['marker', 100, 100, 100, 100], ['marker', 200, 150, 200, 150], ['marker', 300, 200, 300, 200]]);
+    assert.equal(e.tool, 'marker');
+    assert.equal(e.draft, null);
+    // Outside the selection places nothing; an outer handle press resizes and places nothing.
+    place(e, {x: 450, y: 380});
+    e.pointerDown({x: 400, y: 350});
+    assert.equal(e.interaction, 'selection-resize');
+    e.pointerUp({x: 400, y: 350});
+    assert.equal(e.annotations.length, 3);
+    assert.equal(e.selection.width, 380);
+    e.undo();
+    assert.deepEqual(labels(e), [1, 2]);
+    e.redo();
+    assert.deepEqual(labels(e), [1, 2, 3]);
+});
+
+test('deleting a marker renumbers the rest, and undo and redo of the deletion restore the numbers', () => {
+    const e = editor();
+    selection(e);
+    e.setTool('marker');
+    for (const p of [{x: 100, y: 100}, {x: 200, y: 150}, {x: 300, y: 200}]) place(e, p);
+    e.setTool(null);
+    place(e, {x: 200, y: 150});
+    assert.equal(e.deleteSelected(), true);
+    assert.deepEqual(labels(e), [1, 2]);
+    assert.deepEqual(e.annotations.map(a => a.x1), [100, 300]);
+    e.undo();
+    assert.deepEqual(labels(e), [1, 2, 3]);
+    e.redo();
+    assert.deepEqual(labels(e), [1, 2]);
+    e.setTool('marker');
+    place(e, {x: 250, y: 250});
+    assert.deepEqual(labels(e), [1, 2, 3]);
+    assert.equal(e.annotations.at(-1).x1, 250);
+});
+
+test('a selected marker moves and restyles keeping its number, and starts no resize gesture', () => {
+    const e = editor();
+    selection(e);
+    e.setTool('marker');
+    for (const p of [{x: 100, y: 100}, {x: 200, y: 150}, {x: 300, y: 200}]) place(e, p);
+    e.setTool(null);
+    place(e, {x: 200, y: 150});
+    // (212, 150) is the east handle of marker 2's box; a resize gesture would start here.
+    e.pointerDown({x: 212, y: 150});
+    assert.equal(e.interaction, 'annotation-move');
+    e.pointerUp({x: 212, y: 150});
+    drag(e, {x: 200, y: 150}, {x: 230, y: 170});
+    assert.deepEqual([e.annotations[1].x1, e.annotations[1].y1, e.annotations[1].x2, e.annotations[1].y2], [230, 170, 230, 170]);
+    assert.deepEqual(labels(e), [1, 2, 3]);
+    e.setStyle({color: '#0000ff'});
+    assert.equal(e.annotations[1].color, '#0000ff');
+    assert.deepEqual(labels(e), [1, 2, 3]);
+    e.setStyle({width: 10});
+    assert.deepEqual(annotationRect(e.annotations[1]), {x: 190, y: 130, width: 80, height: 80});
+    assert.deepEqual(labels(e), [1, 2, 3]);
+});
+
+test('gradient is supported only by arrow, rectangle, circle and marker', () => {
+    assert.deepEqual(['arrow', 'rectangle', 'circle', 'marker', 'highlighter', 'text', 'pixelate'].map(supportsGradient),
+        [true, true, true, true, false, false, false]);
+    assert.deepEqual(new Editor({monitors}).style, {color: '#ff0000', width: 3, gradient: false});
+});
+
+test('new arrow, rectangle, ellipse and marker store gradient only while the toggle is on', () => {
+    const on = new Editor({monitors, windows, gradient: true});
+    selection(on);
+    draw(on, 'arrow', {x: 80, y: 80}, {x: 160, y: 120});
+    draw(on, 'rectangle');
+    draw(on, 'circle');
+    on.setTool('marker');
+    place(on, {x: 300, y: 300});
+    on.setTool(null);
+    assert.deepEqual(on.annotations.map(a => [a.type, a.gradient]),
+        [['arrow', true], ['rectangle', true], ['circle', true], ['marker', true]]);
+    const off = editor();
+    selection(off);
+    draw(off, 'rectangle');
+    off.setTool('marker');
+    place(off, {x: 300, y: 300});
+    assert.deepEqual(off.annotations.map(a => a.gradient), [false, false]);
+});
+
+test('highlighter, text and pixelate store gradient false even while the toggle is on', () => {
+    const e = new Editor({monitors, windows, gradient: true});
+    selection(e);
+    draw(e, 'highlighter', {x: 80, y: 80}, {x: 160, y: 120});
+    draw(e, 'pixelate', {x: 200, y: 80}, {x: 260, y: 120});
+    e.addText({x: 90, y: 200}, 'hello');
+    assert.deepEqual(e.annotations.map(a => [a.type, a.gradient]),
+        [['highlighter', false], ['pixelate', false], ['text', false]]);
+});
+
+test('toggling a selected rectangle is one undo step and leaves other annotations unchanged', () => {
+    const e = editor();
+    selection(e);
+    draw(e, 'arrow', {x: 220, y: 80}, {x: 300, y: 120});
+    draw(e, 'rectangle');
+    e.pointerDown({x: 140, y: 80});
+    e.pointerUp({x: 140, y: 80});
+    assert.equal(e.selectedId, e.annotations[1].id);
+    const arrow = structuredClone(e.annotations[0]);
+    e.setStyle({gradient: true});
+    assert.equal(e.annotations[1].gradient, true);
+    assert.deepEqual(e.annotations[0], arrow);
+    assert.equal(e.undo(), true);
+    assert.equal(e.annotations[1].gradient, false);
+    assert.equal(e.undo(), true);
+    assert.deepEqual(e.annotations.map(a => a.type), ['arrow']);
+    assert.equal(e.undo(), true);
+    assert.equal(e.undo(), false);
+});
+
+test('toggling a selected highlighter, text or pixelate changes nothing and records no undo', () => {
+    const cases = [
+        ['highlighter', e => draw(e, 'highlighter', {x: 80, y: 80}, {x: 160, y: 120}), {x: 120, y: 100}],
+        ['pixelate', e => draw(e, 'pixelate', {x: 80, y: 80}, {x: 160, y: 120}), {x: 120, y: 100}],
+        ['text', e => e.addText({x: 90, y: 200}, 'hello'), {x: 95, y: 205}],
+    ];
+    for (const [type, create, point] of cases) {
+        const e = editor();
+        selection(e);
+        create(e);
+        e.pointerDown(point);
+        e.pointerUp(point);
+        assert.equal(e.selectedId, e.annotations[0].id, type);
+        const before = structuredClone(e.annotations);
+        e.setStyle({gradient: true});
+        assert.deepEqual(e.annotations, before, type);
+        assert.equal(e.style.gradient, true, type);
+        assert.equal(e.undo(), true, type);
+        assert.deepEqual(e.annotations, [], type);
+        assert.equal(e.undo(), false, type);
+    }
+});
+
+test('toggling with nothing selected changes only the style and records no undo', () => {
+    const e = editor();
+    selection(e);
+    e.setStyle({gradient: true});
+    assert.equal(e.style.gradient, true);
+    assert.equal(e.undo(), false);
+});
+
+test('toggling off a selected annotation without the field records no undo', () => {
+    const e = editor();
+    selection(e);
+    draw(e, 'rectangle');
+    e.pointerDown({x: 140, y: 80});
+    e.pointerUp({x: 140, y: 80});
+    delete e.annotations[0].gradient;
+    const before = structuredClone(e.annotations);
+    e.setStyle({gradient: false});
+    assert.deepEqual(e.annotations, before);
+    assert.equal(e.undo(), true);
+    assert.deepEqual(e.annotations, []);
+});
+
+test('recolouring a selected gradient annotation keeps its gradient', () => {
+    const e = new Editor({monitors, windows, gradient: true});
+    selection(e);
+    draw(e, 'arrow', {x: 80, y: 80}, {x: 160, y: 120});
+    e.pointerDown({x: 120, y: 100});
+    e.pointerUp({x: 120, y: 100});
+    e.setStyle({color: '#0000ff'});
+    assert.deepEqual([e.annotations[0].color, e.annotations[0].gradient], ['#0000ff', true]);
+});
+
+test('undo and redo of a delete restore each annotation its own gradient flag', () => {
+    const e = new Editor({monitors, windows, gradient: true});
+    selection(e);
+    draw(e, 'rectangle', {x: 80, y: 80}, {x: 200, y: 160});
+    e.setStyle({gradient: false});
+    draw(e, 'arrow', {x: 220, y: 80}, {x: 300, y: 120});
+    e.pointerDown({x: 140, y: 80});
+    e.pointerUp({x: 140, y: 80});
+    e.deleteSelected();
+    e.pointerDown({x: 260, y: 100});
+    e.pointerUp({x: 260, y: 100});
+    e.deleteSelected();
+    assert.deepEqual(e.annotations, []);
+    e.undo();
+    e.undo();
+    assert.deepEqual(e.annotations.map(a => [a.type, a.gradient]), [['rectangle', true], ['arrow', false]]);
+    e.redo();
+    assert.deepEqual(e.annotations.map(a => [a.type, a.gradient]), [['arrow', false]]);
+});
+
+test('an annotation without the gradient field reads as flat and survives colour edits', () => {
+    const flat = {id: 9, type: 'rectangle', color: '#ff0000', width: 3, x1: 80, y1: 80, x2: 200, y2: 160};
+    const before = structuredClone(flat);
+    const e = editor();
+    selection(e);
+    e.annotations.push(flat);
+    e.pointerDown({x: 140, y: 80});
+    e.pointerUp({x: 140, y: 80});
+    assert.equal(e.selectedId, 9);
+    e.setStyle({color: '#0000ff'});
+    assert.equal(e.annotations[0].color, '#0000ff');
+    assert.equal(e.annotations[0].gradient, undefined);
+    assert.equal(e.undo(), true);
+    assert.deepEqual(e.annotations, [before]);
 });

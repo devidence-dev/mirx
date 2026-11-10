@@ -4,9 +4,11 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import {markerNumbers} from '../core/editor.js';
+import {markerRadius} from '../core/geometry.js';
 import {textFont} from '../rendering/annotations.js';
-import {arrowBars, effectTextureUniforms, ellipseUniforms, pixelateGeometry, pixelateUniforms, rectangleGeometry} from '../rendering/actorGeometry.js';
-import {ELLIPSE_CODE, ELLIPSE_DECLARATIONS, PIXELATE_CODE, PIXELATE_DECLARATIONS} from './shaders.js';
+import {arrowBars, arrowBounds, contrastColor, effectTextureUniforms, ellipseUniforms, gradientShades, gradientUniforms, markerDisc, markerLabel, pixelateGeometry, pixelateUniforms, rectangleGeometry} from '../rendering/actorGeometry.js';
+import {ELLIPSE_CODE, ELLIPSE_DECLARATIONS, GRADIENT_RECOLOR_CODE, GRADIENT_RECOLOR_DECLARATIONS, PIXELATE_CODE, PIXELATE_DECLARATIONS} from './shaders.js';
 
 export function setUniforms(effect, values) {
     effect.locations ??= new Map();
@@ -32,8 +34,30 @@ const EllipseEffect = GObject.registerClass(class MirxEllipseEffect extends Shel
 
     vfunc_paint_target(node, paintContext) {
         const scale = this.get_actor().get_resource_scale();
-        setUniforms(this, {...textureUniforms(this),
-            ...ellipseUniforms(this.annotation, scale, this.physicalScale), ringColor: this.color});
+        const shape = this.marker
+            ? markerDisc(this.marker, scale, this.physicalScale).uniforms
+            : ellipseUniforms(this.annotation, scale, this.physicalScale);
+        const size = this.marker
+            ? markerDisc(this.marker, 1, this.physicalScale).rect
+            : rectangleGeometry(this.annotation);
+        const gradient = gradientUniforms(this.marker ?? this.annotation, size, this.shades, scale);
+        setUniforms(this, {...textureUniforms(this), ...shape, ...gradient, ringColor: this.color});
+        super.vfunc_paint_target(node, paintContext);
+    }
+});
+
+// Recolours the St pixels already painted by a rectangle or arrow; exists only while it has a gradient.
+const GradientEffect = GObject.registerClass(class MirxGradientEffect extends Shell.GLSLEffect {
+    vfunc_build_pipeline() {
+        // Samples its texture explicitly, the same way GNOME Shell's own effects do.
+        this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, GRADIENT_RECOLOR_DECLARATIONS, GRADIENT_RECOLOR_CODE, true);
+    }
+
+    vfunc_paint_target(node, paintContext) {
+        const scale = this.get_actor().get_resource_scale();
+        const size = this.annotation.type === 'arrow' ? arrowBounds(this.annotation) : rectangleGeometry(this.annotation);
+        const {textureSize, contentOffset} = textureUniforms(this);
+        setUniforms(this, {textureSize, contentOffset, ...gradientUniforms(this.annotation, size, this.shades, scale)});
         super.vfunc_paint_target(node, paintContext);
     }
 });
@@ -62,6 +86,23 @@ function place(actor, rect) {
     actor.set_size(rect.width, rect.height);
 }
 
+// Adds the effect once while the gradient is on, reuses it, and removes it when the gradient goes off.
+function syncGradient(entry, annotation, color) {
+    const {actor} = entry;
+    if (annotation.gradient && !entry.effect) {
+        entry.effect = new GradientEffect();
+        actor.add_effect(entry.effect);
+    } else if (!annotation.gradient && entry.effect) {
+        actor.remove_effect(entry.effect);
+        entry.effect = null;
+    }
+    if (!entry.effect)
+        return;
+    entry.effect.annotation = {...annotation};
+    entry.effect.shades = gradientShades(color);
+    actor.queue_redraw();
+}
+
 export class AnnotationActors {
     constructor({snapshot, width, height}) {
         this.snapshot = snapshot;
@@ -73,7 +114,7 @@ export class AnnotationActors {
     }
 
     _create(annotation) {
-        let actor, bars = null, image = null, effect = null;
+        let actor, bars = null, image = null, effect = null, disc = null, shadow = null, label = null;
         if (annotation.type === 'arrow') {
             actor = new Clutter.Actor();
             bars = [0, 1, 2].map(() => new St.Widget());
@@ -84,6 +125,17 @@ export class AnnotationActors {
             const [, background] = Cogl.Color.from_string('#ffffff');
             actor = new Clutter.Actor({background_color: background});
             effect = new EllipseEffect();
+        } else if (annotation.type === 'marker') {
+            // Only the disc carries the effect, so the number is drawn unfiltered.
+            const [, background] = Cogl.Color.from_string('#ffffff');
+            actor = new Clutter.Actor();
+            disc = new Clutter.Actor({background_color: background});
+            shadow = new Clutter.Text();
+            label = new Clutter.Text();
+            actor.add_child(disc);
+            actor.add_child(shadow);
+            actor.add_child(label);
+            effect = new EllipseEffect();
         } else if (annotation.type === 'pixelate') {
             actor = new Clutter.Actor({clip_to_allocation: true});
             image = new Clutter.Actor({content: this.snapshot.content, ...this._stage});
@@ -93,14 +145,14 @@ export class AnnotationActors {
         } else {
             actor = new St.Widget();
         }
-        const entry = {actor, bars, image, effect, type: annotation.type, key: null, hidden: false};
+        const entry = {actor, bars, image, disc, shadow, label, effect, type: annotation.type, key: null, hidden: false};
         if (effect)
-            actor.add_effect(effect);
+            (disc ?? actor).add_effect(effect);
         this.actor.add_child(actor);
         return entry;
     }
 
-    _updateEntry(entry, annotation, selection) {
+    _updateEntry(entry, annotation, selection, number) {
         const {actor} = entry;
         const color = colorOf(annotation.color);
         const width = Math.max(1, annotation.width || 3);
@@ -111,6 +163,7 @@ export class AnnotationActors {
                 actor.set_style(`border: ${width}px solid ${color}; border-radius: ${width / 2}px;`);
                 entry.style = `${width}:${color}`;
             }
+            syncGradient(entry, annotation, color);
             break;
         case 'highlighter': {
             place(actor, rectangleGeometry(annotation));
@@ -121,17 +174,22 @@ export class AnnotationActors {
             }
             break;
         }
-        case 'arrow':
+        case 'arrow': {
+            // The container is the arrowBounds box, so bars are placed relative to its origin.
+            const bounds = arrowBounds(annotation);
+            place(actor, bounds);
             arrowBars(annotation).forEach((bar, i) => {
                 const part = entry.bars[i];
-                place(part, bar);
+                place(part, {...bar, x: bar.x - bounds.x, y: bar.y - bounds.y});
                 part.set_pivot_point(bar.pivotX, bar.pivotY);
                 part.set_rotation_angle(Clutter.RotateAxis.Z_AXIS, bar.angle);
                 if (entry.style !== `${width}:${color}`)
                     part.set_style(`background-color: ${color}; border-radius: ${width / 2}px;`);
             });
             entry.style = `${width}:${color}`;
+            syncGradient(entry, annotation, color);
             break;
+        }
         case 'text': {
             actor.set_position(annotation.x1, annotation.y1);
             const text = annotation.text ?? '';
@@ -156,8 +214,37 @@ export class AnnotationActors {
             entry.effect.annotation = {...annotation};
             entry.effect.physicalScale = this._physicalScale;
             entry.effect.color = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255);
+            entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
             actor.queue_redraw();
             break;
+        case 'marker': {
+            const scale = this._physicalScale;
+            place(entry.disc, markerDisc(annotation, 1, scale).rect);
+            entry.effect.marker = annotation;
+            entry.effect.physicalScale = scale;
+            entry.effect.color = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255);
+            entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
+            entry.disc.queue_redraw();
+            const text = String(number);
+            const {label} = entry;
+            label.set_text(text);
+            label.set_font_description(textFont(width, markerLabel(markerRadius(annotation.width), text.length).fontSize));
+            const ink = contrastColor(color);
+            const [, coglColor] = Cogl.Color.from_string(ink);
+            label.set_color(coglColor);
+            const {shadow} = entry;
+            shadow.set_text(text);
+            shadow.set_font_description(textFont(width, markerLabel(markerRadius(annotation.width), text.length).fontSize));
+            const [, shadowColor] = Cogl.Color.from_string('#00000059'); // 35% black
+            shadow.set_color(shadowColor);
+            shadow.visible = ink === '#ffffff'; // a shadow under a black number would only smudge it
+            const [, w] = label.get_preferred_width(-1);
+            const [, h] = label.get_preferred_height(-1);
+            const snap = v => Math.round(v * scale) / scale;
+            place(label, {x: snap(annotation.x1 - w / 2), y: snap(annotation.y1 - h / 2), width: w, height: h});
+            place(shadow, {x: snap(annotation.x1 - w / 2), y: snap(annotation.y1 - h / 2 + 1 / scale), width: w, height: h});
+            break;
+        }
         case 'pixelate': {
             const geometry = pixelateGeometry(annotation, selection, this._stage);
             place(actor, geometry.rect);
@@ -189,6 +276,7 @@ export class AnnotationActors {
                 this._entries.delete(id);
             }
         }
+        const numbers = markerNumbers(annotations);
         for (const annotation of annotations) {
             let entry = this._entries.get(annotation.id);
             if (!entry) {
@@ -197,9 +285,10 @@ export class AnnotationActors {
             }
             const key = JSON.stringify([annotation,
                 annotation.type === 'pixelate' ? selection : null,
-                annotation.type === 'circle' ? this._physicalScale : null]);
+                annotation.type === 'circle' || annotation.type === 'marker' ? this._physicalScale : null,
+                annotation.type === 'marker' ? numbers.get(annotation.id) : null]);
             if (entry.key !== key) {
-                this._updateEntry(entry, annotation, selection);
+                this._updateEntry(entry, annotation, selection, numbers.get(annotation.id));
                 entry.key = key;
             }
             const hidden = Boolean(entry.empty || annotation.type === 'text' && annotation.id === editingId);
@@ -227,6 +316,8 @@ export class AnnotationActors {
         for (const entry of this._entries.values()) {
             if (entry.type === 'circle' || entry.type === 'pixelate')
                 entry.actor.get_allocation_box();
+            else if (entry.type === 'marker')
+                entry.disc.get_allocation_box();
         }
     }
 }

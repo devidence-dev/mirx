@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.mirx" path="/org/gnome/shell/extensions/mirx/">
-    <key name="shortcut" type="as"><default>['&lt;Alt&gt;&lt;Shift&gt;x']</default><summary>Capture shortcut</summary></key>
+    <key name="capture-shortcut" type="as"><default>['&lt;Alt&gt;&lt;Shift&gt;x']</default><summary>Capture shortcut</summary></key>
     <key name="enter-action" type="s"><choices><choice value="copy"/><choice value="save"/></choices><default>'copy'</default><summary>Enter action</summary></key>
     <key name="folder" type="s"><default>'~/screenshots'</default><summary>Capture folder</summary></key>
     <key name="perf-log" type="b"><default>false</default><summary>Log motion and export performance</summary></key>

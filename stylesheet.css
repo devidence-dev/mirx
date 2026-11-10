@@ -36,8 +36,9 @@
     padding: 4px 8px;
     font-size: 12px;
 }
-.mirx-magnifier { background-color: #171a20; border: 1px solid #ffffff; border-radius: 4px; }
-.mirx-coordinates { color: #ffffff; font-size: 12px; padding-left: 8px; }
+.mirx-magnifier { background-color: #171a20; border-radius: 10px; }
+.mirx-magnifier-frame { border: 2px solid rgba(90, 90, 90, 0.9); border-radius: 10px; }
+.mirx-cursor-coordinates { color: #ffffff; font-size: 12px; background-color: rgba(20, 20, 20, 0.72); border-radius: 4px; padding: 2px 5px; }
 .mirx-error { color: #ffffff; background-color: #8c2424; border-radius: 6px; padding: 10px; }
 .mirx-text-editor {
     background-color: rgba(20, 24, 32, 0.85);

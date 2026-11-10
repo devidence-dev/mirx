@@ -20,12 +20,12 @@ export default class MirxPreferences extends ExtensionPreferences {
         const shortcut = new Adw.ActionRow({title: 'Keyboard shortcut'});
         const shortcutButton = new Gtk.Button({valign: Gtk.Align.CENTER});
         const updateShortcut = () => {
-            const value = settings.get_strv('shortcut')[0];
+            const value = settings.get_strv('capture-shortcut')[0];
             const [valid, key, mods] = Gtk.accelerator_parse(value ?? '');
             shortcutButton.label = valid ? Gtk.accelerator_get_label(key, mods) : 'Not set';
         };
         updateShortcut();
-        watch('changed::shortcut', updateShortcut);
+        watch('changed::capture-shortcut', updateShortcut);
         shortcutButton.connect('clicked', () => {
             const dialog = new Gtk.Dialog({title: 'Change shortcut', transient_for: window, modal: true});
             dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
@@ -40,7 +40,7 @@ export default class MirxPreferences extends ExtensionPreferences {
                 const modifiers = state & Gtk.accelerator_get_default_mod_mask();
                 const required = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.META_MASK;
                 if ((modifiers & required) && Gtk.accelerator_valid(keyval, modifiers)) {
-                    settings.set_strv('shortcut', [Gtk.accelerator_name(keyval, modifiers)]);
+                    settings.set_strv('capture-shortcut', [Gtk.accelerator_name(keyval, modifiers)]);
                     dialog.close();
                 } else {
                     label.label = 'Invalid combination. Use Ctrl, Alt or Super with another key.';

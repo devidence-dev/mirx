@@ -29,7 +29,9 @@ export default class MirxExtension extends Extension {
             }),
             notifyError: (title, body) => Main.notifyError(title, body),
         });
-        Main.wm.addKeybinding('shortcut', this._settings,
+        // Keybinding names are global in GNOME Shell; Ubuntu Dock also registers 'shortcut' and removes it
+        // when monitors change, so a generic name would silently drop ours.
+        Main.wm.addKeybinding('capture-shortcut', this._settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, Shell.ActionMode.NORMAL,
             () => this._session.open());
         this._monitorId = Main.layoutManager.connect('monitors-changed', () => this._session.close());
@@ -37,7 +39,7 @@ export default class MirxExtension extends Extension {
     }
 
     disable() {
-        Main.wm.removeKeybinding('shortcut');
+        Main.wm.removeKeybinding('capture-shortcut');
         if (this._monitorId)
             Main.layoutManager.disconnect(this._monitorId);
         if (this._sessionId)
