@@ -1,9 +1,54 @@
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
+import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {annotationBounds, renderAnnotations, textFont} from '../rendering/annotations.js';
-import {arrowBars, rectangleGeometry} from '../rendering/actorGeometry.js';
+import {textFont} from '../rendering/annotations.js';
+import {arrowBars, effectTextureUniforms, ellipseUniforms, pixelateGeometry, pixelateUniforms, rectangleGeometry} from '../rendering/actorGeometry.js';
+import {ELLIPSE_CODE, ELLIPSE_DECLARATIONS, PIXELATE_CODE, PIXELATE_DECLARATIONS} from './shaders.js';
+
+function setUniforms(effect, values) {
+    effect.locations ??= new Map();
+    for (const [name, value] of Object.entries(values)) {
+        if (!effect.locations.has(name))
+            effect.locations.set(name, effect.get_uniform_location(name));
+        // GIR array-length metadata hides total_count from the GJS signature.
+        effect.set_uniform_float(effect.locations.get(name), value.length, value);
+    }
+}
+
+function textureUniforms(effect) {
+    const actor = effect.get_actor();
+    const texture = effect.get_texture();
+    return effectTextureUniforms(actor,
+        [texture.get_width(), texture.get_height()], actor.get_resource_scale());
+}
+
+const EllipseEffect = GObject.registerClass(class MirxEllipseEffect extends Shell.GLSLEffect {
+    vfunc_build_pipeline() {
+        this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, ELLIPSE_DECLARATIONS, ELLIPSE_CODE, true);
+    }
+
+    vfunc_paint_target(node, paintContext) {
+        const scale = this.get_actor().get_resource_scale();
+        setUniforms(this, {...textureUniforms(this),
+            ...ellipseUniforms(this.annotation, scale, this.physicalScale), ringColor: this.color});
+        super.vfunc_paint_target(node, paintContext);
+    }
+});
+
+const PixelateEffect = GObject.registerClass(class MirxPixelateEffect extends Shell.GLSLEffect {
+    vfunc_build_pipeline() {
+        this.add_glsl_snippet(Cogl.SnippetHook.TEXTURE_LOOKUP, PIXELATE_DECLARATIONS, PIXELATE_CODE, true);
+    }
+
+    vfunc_paint_target(node, paintContext) {
+        setUniforms(this, {...textureUniforms(this),
+            ...pixelateUniforms(this.geometry, this.get_actor().get_resource_scale())});
+        super.vfunc_paint_target(node, paintContext);
+    }
+});
 
 function colorOf(value) {
     let color = (value ?? '#ff0000').replace('#', '');
@@ -17,55 +62,45 @@ function place(actor, rect) {
     actor.set_size(rect.width, rect.height);
 }
 
-function canvasRect(annotation) {
-    const bounds = annotationBounds(annotation);
-    const padding = annotation.type === 'circle' ? Math.max(1, annotation.width || 3) / 2 + 1 : 0;
-    const x = Math.floor(bounds.x - padding), y = Math.floor(bounds.y - padding);
-    return {x, y, width: Math.max(1, Math.ceil(bounds.x + bounds.width + padding) - x),
-        height: Math.max(1, Math.ceil(bounds.y + bounds.height + padding) - y)};
-}
-
 export class AnnotationActors {
     constructor({snapshot, width, height}) {
         this.snapshot = snapshot;
+        this._stage = {width, height};
         this.actor = new Clutter.Actor({width, height});
         this._entries = new Map();
         this._order = '';
         this._clip = undefined;
-        this._pixelRevision = 0;
     }
 
     _create(annotation) {
-        let actor, bars = null;
+        let actor, bars = null, image = null, effect = null;
         if (annotation.type === 'arrow') {
             actor = new Clutter.Actor();
             bars = [0, 1, 2].map(() => new St.Widget());
             bars.forEach(bar => actor.add_child(bar));
         } else if (annotation.type === 'text') {
             actor = new Clutter.Text({single_line_mode: false});
-        } else if (annotation.type === 'circle' || annotation.type === 'pixelate') {
-            actor = new St.DrawingArea();
+        } else if (annotation.type === 'circle') {
+            const [, background] = Cogl.Color.from_string('#ffffff');
+            actor = new Clutter.Actor({background_color: background});
+            effect = new EllipseEffect();
+        } else if (annotation.type === 'pixelate') {
+            actor = new Clutter.Actor({clip_to_allocation: true});
+            image = new Clutter.Actor({content: this.snapshot.content, ...this._stage});
+            image.set_content_scaling_filters(Clutter.ScalingFilter.NEAREST, Clutter.ScalingFilter.NEAREST);
+            actor.add_child(image);
+            effect = new PixelateEffect();
         } else {
             actor = new St.Widget();
         }
-        const entry = {actor, bars, type: annotation.type, key: null, hidden: false};
-        if (annotation.type === 'circle' || annotation.type === 'pixelate') {
-            actor.connect('repaint', area => {
-                const cr = area.get_context();
-                try {
-                    cr.translate(-entry.rect.x, -entry.rect.y);
-                    renderAnnotations(cr, [entry.annotation], {scale: this.snapshot.scale,
-                        pixbuf: this.snapshot.pixelationPixbuf ?? this.snapshot.pixbuf});
-                } finally {
-                    cr.$dispose();
-                }
-            });
-        }
+        const entry = {actor, bars, image, effect, type: annotation.type, key: null, hidden: false};
+        if (effect)
+            actor.add_effect(effect);
         this.actor.add_child(actor);
         return entry;
     }
 
-    _updateEntry(entry, annotation) {
+    _updateEntry(entry, annotation, selection) {
         const {actor} = entry;
         const color = colorOf(annotation.color);
         const width = Math.max(1, annotation.width || 3);
@@ -116,16 +151,29 @@ export class AnnotationActors {
             break;
         }
         case 'circle':
-        case 'pixelate':
-            entry.annotation = {...annotation};
-            entry.rect = canvasRect(annotation);
-            place(actor, entry.rect);
-            actor.queue_repaint();
+            place(actor, rectangleGeometry(annotation));
+            entry.empty = annotation.x1 === annotation.x2 || annotation.y1 === annotation.y2;
+            entry.effect.annotation = {...annotation};
+            entry.effect.physicalScale = this._physicalScale;
+            entry.effect.color = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255);
+            actor.queue_redraw();
             break;
+        case 'pixelate': {
+            const geometry = pixelateGeometry(annotation, selection, this._stage);
+            place(actor, geometry.rect);
+            entry.empty = geometry.rect.width === 0 || geometry.rect.height === 0;
+            entry.image.set_position(-geometry.rect.x, -geometry.rect.y);
+            entry.effect.geometry = geometry;
+            actor.queue_redraw();
+            break;
+        }
         }
     }
 
     update(annotations, selection, editingId = null) {
+        const monitor = this.snapshot.monitors?.find(m => selection && selection.x >= m.x && selection.y >= m.y &&
+            selection.x < m.x + m.width && selection.y < m.y + m.height);
+        this._physicalScale = monitor?.scale ?? monitor?.scaleFactor ?? this.snapshot.scale ?? 1;
         const clip = JSON.stringify(selection);
         if (clip !== this._clip) {
             this._clip = clip;
@@ -148,12 +196,13 @@ export class AnnotationActors {
                 this._entries.set(annotation.id, entry);
             }
             const key = JSON.stringify([annotation,
-                annotation.type === 'pixelate' ? this._pixelRevision : null]);
+                annotation.type === 'pixelate' ? selection : null,
+                annotation.type === 'circle' ? this._physicalScale : null]);
             if (entry.key !== key) {
-                this._updateEntry(entry, annotation);
+                this._updateEntry(entry, annotation, selection);
                 entry.key = key;
             }
-            const hidden = annotation.type === 'text' && annotation.id === editingId;
+            const hidden = Boolean(entry.empty || annotation.type === 'text' && annotation.id === editingId);
             if (hidden !== entry.hidden) {
                 entry.hidden = hidden;
                 if (hidden)
@@ -172,10 +221,6 @@ export class AnnotationActors {
             }
             this._order = order;
         }
-    }
-
-    invalidatePixels() {
-        this._pixelRevision++;
     }
 
     prepareExport() {

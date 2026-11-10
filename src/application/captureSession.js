@@ -53,8 +53,6 @@ export class CaptureSession {
         try {
             if (operation.engine !== 'gpu')
                 await snapshot.pixbufReady;
-            else if (editor.annotations.some(annotation => annotation.type === 'pixelate'))
-                await (snapshot.ensurePixelation?.(editor.annotations) ?? snapshot.pixbufReady);
             if (operation.isCancelled())
                 return;
             if (action === 'save')
