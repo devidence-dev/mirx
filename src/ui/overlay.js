@@ -6,6 +6,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {contains, handles, physicalRect} from '../core/geometry.js';
 import {textFont} from '../rendering/annotations.js';
+import {AlignmentGuides} from './alignmentGuides.js';
 import {AnnotationActors} from './annotationActors.js';
 import {decorationRect, DecorationActors} from './decorations.js';
 import {Magnifier} from './magnifier.js';
@@ -35,6 +36,8 @@ export class Overlay {
         this.actor.add_child(this._draft.actor);
         this._annotationDecorations = new DecorationActors({width, height, createActor: options => new St.Widget(options)});
         this.actor.add_child(this._annotationDecorations.actor);
+        this._guides = new AlignmentGuides(snapshot);
+        this.actor.add_child(this._guides.actor);
         this._frame = new St.Widget({style_class: 'mirx-frame', visible: false});
         this.actor.add_child(this._frame);
         this._handles = [0, 1, 2, 3, 4, 5, 6, 7].map(() =>
@@ -333,9 +336,12 @@ export class Overlay {
             this._hint.set_position(m.x + 20, m.y + 20);
         }
         const pointerMonitor = this.snapshot.monitors.find(item => contains(item, this._point));
-        this._magnifier.update(this._pointer ?? this._point, pointerMonitor,
-            !this._busy && !this._textEdit && (!this.editor.tool || this._selectionDrag) &&
-            (!selection || this._selectionDrag));
+        // The guides and the magnifier share one point, monitor and visibility condition.
+        const aidPoint = this._pointer ?? this._point;
+        const aidVisible = !this._busy && !this._textEdit && (!this.editor.tool || this._selectionDrag) &&
+            (!selection || this._selectionDrag);
+        this._magnifier.update(aidPoint, pointerMonitor, aidVisible);
+        this._guides.update(aidPoint, pointerMonitor, aidVisible);
         this.actor.set_cursor_type(this.editor.tool === 'text' ? Clutter.CursorType.TEXT :
             this.editor.tool || !selection ? Clutter.CursorType.CROSSHAIR : Clutter.CursorType.DEFAULT);
         this._updateDecorations();
@@ -354,7 +360,7 @@ export class Overlay {
         // its allocation forces pending stage layout and any allocation repaint.
         this._annotations.prepareExport();
         const actors = [...this._shades, this._annotationDecorations.actor, this._draft.actor,
-            this._frame, ...this._handles, this._dimensions, this._hint, this._error,
+            this._guides.actor, this._frame, ...this._handles, this._dimensions, this._hint, this._error,
             this._toolbar.actor, this._magnifier.actor, this._textEdit?.actor].filter(Boolean);
         const visibility = actors.map(actor => actor.visible);
         try {

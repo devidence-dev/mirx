@@ -76,3 +76,26 @@ if (all(greaterThanEqual(p, vec2(0.0))) && all(lessThan(p, extent))) {
     cogl_texel = vec4(sum / 16.0, 1.0);
 }
 `;
+
+export const GUIDE_DECLARATIONS = `
+uniform vec2 textureSize;
+uniform vec2 contentOffset;
+uniform float guidePixel;
+uniform float guideVertical;
+uniform float guideCore;
+uniform float guideDash;
+uniform float guidePeriod;
+`;
+
+export const GUIDE_CODE = `
+// Strip-local physical pixels; the long axis starts at the monitor origin, so the phase is stable.
+vec2 q = (cogl_tex_coord_in[0].xy * textureSize - contentOffset) / guidePixel;
+float along = guideVertical > 0.5 ? q.y : q.x;
+float across = guideVertical > 0.5 ? q.x : q.y;
+float on = mod(along, guidePeriod) < guideDash ? 1.0 : 0.0;
+bool core = across >= guideCore && across < guideCore + 1.0;
+vec4 color = core ? vec4(1.0) : vec4(0.0, 0.0, 0.0, 0.8);
+// Cogl blends premultiplied colour; the fragments between dashes stay transparent.
+// 0.55 keeps the full-screen guides subtle next to the magnifier.
+cogl_color_out = color * (on * cogl_color_in.a * 0.55);
+`;
