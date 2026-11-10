@@ -111,7 +111,7 @@ export default class MirxPreferences extends ExtensionPreferences {
 
         const appearance = new Adw.PreferencesGroup({ title: 'Annotations' });
         page.add(appearance);
-        const color = new Adw.EntryRow({ title: 'Default color (hex, for example #ff0000)' });
+        const color = new Adw.EntryRow({ title: 'Color (hex, remembered from toolbar)' });
         color.text = settings.get_string('default-color');
         color.connect('changed', () => {
             if (/^#[0-9a-fA-F]{6}$/.test(color.text)) {
@@ -126,7 +126,7 @@ export default class MirxPreferences extends ExtensionPreferences {
         });
         appearance.add(color);
         const width = new Adw.SpinRow({
-            title: 'Default width (px)',
+            title: 'Default width for tools without a remembered size (px)',
             adjustment: new Gtk.Adjustment({ lower: 1, upper: 30, step_increment: 1, page_increment: 5 }),
         });
         width.value = settings.get_int('default-width');

@@ -8,6 +8,8 @@
     <key name="perf-log" type="b"><default>false</default><summary>Log motion and export performance</summary></key>
     <key name="format" type="s"><choices><choice value="PNG"/><choice value="JPG"/></choices><default>'PNG'</default><summary>Image format</summary></key>
     <key name="default-color" type="s"><default>'#ff0000'</default><summary>Default color</summary></key>
+    <key name="annotation-gradient" type="b"><default>false</default><summary>Remembered annotation gradient</summary></key>
+    <key name="tool-widths" type="a{si}"><default>{}</default><summary>Remembered tool widths</summary></key>
     <key name="default-width" type="i"><range min="1" max="30"/><default>3</default><summary>Default width</summary></key>
   </schema>
 </schemalist>

@@ -138,3 +138,15 @@ The supplied GIR set has no GLib declarations. The tooltip uses the [binding ver
 The host lacks `/usr/bin/glslangValidator`; all six shaders passed `npm run glsl` in a temporary Docker container with the repository mounted read-only. No shader code changed for annotation shadows.
 
 Annotation-shadow validation on 2026-11-10: `npm test` passes 205 tests without skips; lint, check (including strict schema validation), pack and strict OpenSpec validation pass. Both shadow runtime modules are included in the zip. Tests cover padding, physical alignment at 100/133/200%, fractional-scale blur, silhouette sources, stacking, unchanged refreshes, movement, visibility while editing, removal and export retention. New APIs were checked in `.gir/Clutter-18.gir:5140` (Clone/source), `:5772` (ColorizeEffect/tint) and `.gir/Shell-18.gir:472` (BlurEffect/ACTOR). These checks do not establish graphical fidelity; the annotation-shadow GNOME and export checks above remain pending.
+
+## Annotation appearance memory (pending graphical checks)
+
+Pending: a GNOME Shell 50 / Wayland session and user interaction are unavailable in this environment; no results below have been observed.
+
+- [ ] Set Blue and gradient on, then cancel, copy and save in separate captures; reopen each time and confirm both values. Disable/enable the extension and log out/in and check again. Turn gradient off and confirm that is remembered too.
+- [ ] Using buttons and A/N shortcuts, set arrow to 3 px and marker to 5 px; assign sizes to rectangle, ellipse, highlighter, pixelate and text and verify each restores independently. Check idle and empty Select and move disable size buttons and show the fallback.
+- [ ] Select and move an old marker with a different style; confirm selection alone does not change memory. Restyle it, undo and redo, and confirm new markers retain the edited size and shared colour. Check fresh captures have no selection, annotations or history and marker numbering starts at 1.
+- [ ] At 100%, 200% and approximately 133% scaling, compare restored styles in preview and PNG, JPG and clipboard exports, including markers, text, pixelation and annotations crossing selection edges. Verify clipping, GPU rendering and exclusion of toolbar and editing decorations.
+- [ ] Change default width and colour in preferences; verify the next capture uses the colour and only tools without saved size overrides use the new fallback. Simulate a rejected settings write and confirm one preference error, continued editing/export and last saved values after reopen.
+
+API verification: [Gio.Settings get_value](https://docs.gtk.org/gio/method.Settings.get_value.html) and [set_value](https://docs.gtk.org/gio/method.Settings.set_value.html) document the methods and setter result. The [GJS 1.88 GLib override](https://raw.githubusercontent.com/GNOME/gjs/1.88.0/modules/core/overrides/GLib.js) shows dictionary packing and deep unpacking. Target Gio/GLib GIR files and typelibs were unavailable locally, so direct target typelib verification remains pending.

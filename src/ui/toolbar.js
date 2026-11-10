@@ -78,30 +78,28 @@ export class Toolbar {
             groups.colors.add_child(button);
             this._colors.set(color, button);
         }
-        groups.width.add_child(
-            this._button(
-                'Decrease width',
-                'minus-symbolic.svg',
-                () => onStyle({ width: Math.max(1, this._width - 1) }),
-                'Decrease width',
-                'below',
-            ),
+        this._decreaseWidth = this._button(
+            'Decrease width',
+            'minus-symbolic.svg',
+            () => onStyle({ width: Math.max(1, this._width - 1) }),
+            'Decrease width',
+            'below',
         );
+        groups.width.add_child(this._decreaseWidth);
         this._widthLabel = new St.Label({
             text: '3 px',
             style_class: 'mirx-width-value',
             y_align: Clutter.ActorAlign.CENTER,
         });
         groups.width.add_child(this._widthLabel);
-        groups.width.add_child(
-            this._button(
-                'Increase width',
-                'plus-symbolic.svg',
-                () => onStyle({ width: Math.min(30, this._width + 1) }),
-                'Increase width',
-                'below',
-            ),
+        this._increaseWidth = this._button(
+            'Increase width',
+            'plus-symbolic.svg',
+            () => onStyle({ width: Math.min(30, this._width + 1) }),
+            'Increase width',
+            'below',
         );
+        groups.width.add_child(this._increaseWidth);
         this._gradient = this._button(
             'Gradient',
             'gradient-symbolic.svg',
@@ -150,11 +148,21 @@ export class Toolbar {
         return button;
     }
 
+    _updateWidth(editor, selected) {
+        const width =
+            selected?.width ?? (editor.sizeTarget ? editor.style.width : (editor.fallbackWidth ?? editor.style.width));
+        this._decreaseWidth.reactive = this._increaseWidth.reactive = Boolean(editor.sizeTarget);
+        this._decreaseWidth.can_focus = this._increaseWidth.can_focus = Boolean(editor.sizeTarget);
+        for (const button of [this._decreaseWidth, this._increaseWidth])
+            button[editor.sizeTarget ? 'remove_style_pseudo_class' : 'add_style_pseudo_class']('disabled');
+        this._width = width;
+        this._widthLabel.text = `${width} px`;
+    }
+
     update(editor) {
         const selected = editor.annotations.find((a) => a.id === editor.selectedId);
         const style = selected ?? editor.style;
-        this._width = style.width;
-        this._widthLabel.text = `${style.width} px`;
+        this._updateWidth(editor, selected);
         for (const [tool, button] of this._tools)
             button[tool === editor.tool ? 'add_style_pseudo_class' : 'remove_style_pseudo_class']('checked');
         for (const [color, button] of this._colors)

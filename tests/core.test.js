@@ -158,8 +158,8 @@ test('drawing, moving, resizing, styling and deletion are undoable', () => {
     assert.equal(e.annotations[0].x1, 50);
     e.undo();
     assert.deepEqual(e.annotations, moved);
-    e.setStyle({ color: '#00f', width: 6 });
-    assert.equal(e.annotations[0].color, '#00f');
+    e.setStyle({ color: '#0000ff', width: 6 });
+    assert.equal(e.annotations[0].color, '#0000ff');
     e.undo();
     assert.equal(e.annotations[0].color, '#ff0000');
     e.redo();

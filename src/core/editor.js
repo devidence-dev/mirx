@@ -21,6 +21,21 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const startOf = (annotation) => ({ x: annotation.x1, y: annotation.y1 });
 const endOf = (annotation) => ({ x: annotation.x2, y: annotation.y2 });
 const DRAG_THRESHOLD = 5;
+export const DRAWING_TOOLS = ['arrow', 'rectangle', 'circle', 'marker', 'highlighter', 'pixelate', 'text'];
+const validWidth = (value) => Number.isInteger(value) && value >= 1 && value <= 30;
+
+export function normalizeAppearance({ color, width, gradient, toolWidths } = {}) {
+    const widths = {};
+    if (toolWidths && typeof toolWidths === 'object') {
+        for (const tool of DRAWING_TOOLS) if (validWidth(toolWidths[tool])) widths[tool] = toolWidths[tool];
+    }
+    return {
+        color: typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#ff0000',
+        width: validWidth(width) ? width : 3,
+        gradient: typeof gradient === 'boolean' ? gradient : false,
+        toolWidths: widths,
+    };
+}
 
 export function supportsGradient(type) {
     return ['arrow', 'rectangle', 'circle', 'marker'].includes(type);
@@ -114,6 +129,8 @@ export class Editor {
         color = '#ff0000',
         width = 3,
         gradient = false,
+        toolWidths = {},
+        onPreferenceChange = () => {},
         measureText = estimateText,
     }) {
         this.monitors = monitors;
@@ -123,7 +140,11 @@ export class Editor {
         this.annotations = [];
         this.selectedId = null;
         this.tool = null;
-        this.style = { color, width, gradient };
+        const appearance = normalizeAppearance({ color, width, gradient, toolWidths });
+        this.fallbackWidth = appearance.width;
+        this.toolWidths = appearance.toolWidths;
+        this.style = { color: appearance.color, width: appearance.width, gradient: appearance.gradient };
+        this.onPreferenceChange = onPreferenceChange;
         this.hover = null;
         this.draft = null;
         this.history = new CommandHistory();
@@ -212,28 +233,53 @@ export class Editor {
         return monitor && { x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height };
     }
 
+    get sizeTarget() {
+        return this._selected()?.type ?? (DRAWING_TOOLS.includes(this.tool) ? this.tool : null);
+    }
+
     setTool(tool) {
         this.tool = tool;
         this.selectedId = null;
+        this.style.width = this.toolWidths[tool] ?? this.fallbackWidth;
+    }
+
+    _editColor(color, selected, patch) {
+        if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
+        if (color === this.style.color && (!selected || color === selected.color)) return;
+        this.style.color = color;
+        if (selected) selected.color = color;
+        patch.color = color;
+    }
+
+    _editGradient(gradient, selected, patch) {
+        if (typeof gradient !== 'boolean') return;
+        const changesSelected = selected && supportsGradient(selected.type) && Boolean(selected.gradient) !== gradient;
+        if (gradient === this.style.gradient && !changesSelected) return;
+        this.style.gradient = gradient;
+        if (changesSelected) selected.gradient = gradient;
+        patch.gradient = gradient;
+    }
+
+    _editWidth(width, selected, patch) {
+        const target = this.sizeTarget;
+        if (!target || !validWidth(width) || width === (selected ? selected.width : this.style.width)) return;
+        this.toolWidths[target] = width;
+        if (selected) {
+            selected.width = width;
+            if (selected.type === 'text') this._measure(selected);
+        } else this.style.width = width;
+        patch.toolWidth = { tool: target, width };
     }
 
     setStyle(style) {
         const before = this._snapshot();
-        Object.assign(this.style, style);
         const selected = this._selected();
-        if (selected) {
-            const { gradient, ...shared } = style;
-            Object.assign(selected, shared);
-            // Legacy annotations lack the field; compare as booleans so a no-op toggle records no undo entry.
-            if (
-                gradient !== undefined &&
-                supportsGradient(selected.type) &&
-                Boolean(selected.gradient) !== Boolean(gradient)
-            )
-                selected.gradient = Boolean(gradient);
-            if (selected.type === 'text' && style.width !== undefined) this._measure(selected);
-        }
+        const patch = {};
+        this._editColor(style.color, selected, patch);
+        this._editGradient(style.gradient, selected, patch);
+        this._editWidth(style.width, selected, patch);
         this._commit(before);
+        if (Object.keys(patch).length) this.onPreferenceChange(patch);
     }
 
     selectMonitor(point) {
