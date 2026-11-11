@@ -215,3 +215,13 @@ test('legacy selection, undo, delete, escape and arrow shortcuts still work', ()
     f.view._key(f.event(f.Clutter.KEY_Left, 16));
     assert.deepEqual(f.calls.find(Array.isArray), ['nudge', -1, 0, true]);
 });
+
+test('an export that closes the overlay synchronously is not refreshed afterwards', () => {
+    const { view, calls, event } = fixture();
+    view.onExport = (chosen) => {
+        calls.push(chosen);
+        view._destroyed = true;
+    };
+    assert.equal(view._key(event()), 'stop');
+    assert.equal(calls.at(-1), 'copy');
+});

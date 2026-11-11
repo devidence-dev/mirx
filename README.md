@@ -104,9 +104,9 @@ Annotation colour and the gradient toggle are shared across tools and remembered
 | Color (remembered from toolbar) | `#ff0000`       | Hex, six digits                                    |
 | Default width                   | 3 px            | 1-30; fallback for tools without a remembered size |
 
-File names carry the capture date and time. If a name exists, a suffix is added instead of overwriting. A save error keeps your session open so you can retry.
+File names carry the capture date and time. If a name exists, a suffix is added instead of overwriting. A folder error keeps your session open so you can retry; a write failure after the overlay has closed is reported by a notification.
 
-The schema also has a hidden `perf-log` key (default off) that logs motion and export timings, for developers.
+The schema also has a hidden `perf-log` key (default off) that logs motion and export timings, including separate export stages. See the [export performance checks](tests/MANUAL.md#export-performance-diagnostics) to compare a small selection with a full monitor capture.
 
 ## 🛠️ Development
 

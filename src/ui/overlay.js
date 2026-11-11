@@ -249,7 +249,8 @@ export class Overlay {
             if (global.focus_manager.navigate_from_event(event)) return Clutter.EVENT_STOP;
             return Clutter.EVENT_PROPAGATE;
         }
-        this._refresh();
+        // An export shortcut may close the overlay before it returns.
+        if (!this._destroyed) this._refresh();
         return Clutter.EVENT_STOP;
     }
 

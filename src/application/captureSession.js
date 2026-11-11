@@ -5,6 +5,7 @@ export class CaptureSession {
         this._generation = 0;
         this._active = false;
         this._exporting = false;
+        this._copies = 0;
         this._disposed = false;
         this._view = null;
     }
@@ -58,9 +59,18 @@ export class CaptureSession {
         const generation = this._generation;
         const view = this._view;
         const config = this.settings();
+        // A slower, older copy must not overwrite the clipboard after a newer one; saves are never superseded.
+        const copy = action === 'copy' ? ++this._copies : 0;
+        // Once the output holds the pixels the overlay closes; encoding and delivery finish in the background.
+        let captured = false;
         const operation = {
             onComplete,
-            isCancelled: () => generation !== this._generation,
+            onCaptured: () => {
+                if (generation !== this._generation) return;
+                captured = true;
+                this.close();
+            },
+            isCancelled: () => (!captured && generation !== this._generation) || (copy > 0 && copy !== this._copies),
             withExportContent: (callback) => view.withExportContent(callback),
         };
         this._exporting = true;
@@ -80,7 +90,8 @@ export class CaptureSession {
             else throw new Error(`Unknown action: ${action}`);
             if (generation === this._generation) this.close();
         } catch (error) {
-            if (generation === this._generation) {
+            if (captured) this.notifyError('Could not export the capture', error.message);
+            else if (generation === this._generation) {
                 this._view?.showError?.(error.message);
                 this.notifyError('Could not export the capture', error.message);
             }

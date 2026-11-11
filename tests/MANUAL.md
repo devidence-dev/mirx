@@ -150,3 +150,42 @@ Pending: a GNOME Shell 50 / Wayland session and user interaction are unavailable
 - [ ] Change default width and colour in preferences; verify the next capture uses the colour and only tools without saved size overrides use the new fallback. Simulate a rejected settings write and confirm one preference error, continued editing/export and last saved values after reopen.
 
 API verification: [Gio.Settings get_value](https://docs.gtk.org/gio/method.Settings.get_value.html) and [set_value](https://docs.gtk.org/gio/method.Settings.set_value.html) document the methods and setter result. The [GJS 1.88 GLib override](https://raw.githubusercontent.com/GNOME/gjs/1.88.0/modules/core/overrides/GLib.js) shows dictionary packing and deep unpacking. Target Gio/GLib GIR files and typelibs were unavailable locally, so direct target typelib verification remains pending.
+
+## Export performance diagnostics
+
+GNOME Shell 50.1 / Wayland, 2026-11-10: two full-monitor captures at 2560 × 1600 physical pixels and about 133% scale took 1137.697 ms (copy) and 1075.630 ms (PNG save). Respectively, paint took 6.594 / 5.502 ms, the synchronous composite call took 42.851 / 38.408 ms, and the wait for PNG completion and callback scheduling took 1083.175 / 1028.722 ms. Clipboard submission took 2.940 ms; file preparation and PNG write took 0.173 and 1.309 ms. These results identify the PNG completion wait as the dominant measured phase; they do not separately time encoding and callback scheduling.
+
+On the same machine, a 2560 × 1600 synthetic RGBA image containing flat regions and seeded pseudorandom detail was encoded entirely in memory three times per setting. GdkPixbuf's default PNG encoding took 380–411 ms and produced 6,212,348 bytes; `compression=1` took 29–33 ms and produced 7,862,629 bytes. A separate synthetic round trip with compression 1 yielded identical SHA-256 hashes for the original and decoded pixel buffers. These measurements show the speed/size trade-off for synthetic input, not the expected duration or size of a real screenshot.
+
+The existing GNOME Shell 50 [`composite_to_stream`](https://github.com/GNOME/gnome-shell/blob/50.0/src/shell-screenshot.c#L1053-L1141) performs a PNG encode before it returns a pixbuf and does not expose a compression option. GdkPixbuf's [`save_to_streamv_async`](https://docs.gtk.org/gdk-pixbuf/method.Pixbuf.save_to_streamv_async.html) accepts encoder options, but using it earlier requires obtaining the rendered pixels without the existing helper. The target's `Cogl.Texture.get_data` GIR marks its byte-array argument as input, while [GJS 1.88 array marshalling](https://github.com/GNOME/gjs/blob/1.88.0/gi/arg.cpp#L960-L992) may copy that data.
+
+On 2026-11-10, the [isolated texture readback probe](probes/README.md) ran on GNOME Shell 50.1 / GJS 1.88.0. It created a known 2 × 2 RGBA texture in a separate headless Shell. `Cogl.Texture.get_data()` returned 16 but left all 16 caller bytes at their sentinel value; the existing native PNG/pixbuf helper recovered all 16 expected bytes. A separate `Clutter.Stage.paint_to_buffer()` call returned success but also left the caller bytes unchanged, while a native reference capture of the same synthetic stage contained different pixels. These two direct GJS approaches therefore did not provide usable output in this test. The probe did not modify the installed extension or capture the user's screen. Do not replace the working export path until another approach verifies correct bytes, clipping, colour, scaling, failure recovery and actual end-to-end speed. Node tests validate the timing boundaries, not graphical correctness or speed.
+
+Existing implementations: [GNOME Shell 50's screenshot UI](https://github.com/GNOME/gnome-shell/blob/50.0/js/ui/screenshot.js#L1758-L1783) and [Screenshot Tool](https://extensions.gnome.org/review/49843) use `composite_to_stream`. [QuickSnap](https://github.com/SnowTimSwiss/QuickSnap#how-it-works) instead hides its selection overlay and calls `screenshot_area`, which also returns PNG; it has no annotation editor. These examples do not establish a faster way to encode Mirx's already-composited texture. GNOME's [extension review guidelines](https://gjs.guide/extensions/review-guidelines/review-guidelines.html#scripts-and-binaries) prohibit bundling native executables or libraries, so a bundled native readback bridge would not fit the project's extension distribution target.
+
+On 2026-11-10 an isolated headless GNOME Shell 50.1 (Ubuntu 26.04, gdk-pixbuf 2.44.5, glycin 2.1.1, 24 cores, 2560 × 1600 textures) tested splitting the capture into horizontal strips with one `composite_to_stream` call each, merging them and encoding once with `compression=1`. Merged and decoded pixels matched the single-call pixbuf by SHA-256 in every run, but the strips did not encode in parallel: for a photographic wallpaper the PNG wait was 641 ms with 1 strip and 599 ms with 8; for a detailed screenshot 263 ms and 232 ms. The small difference equals the encode time that overlaps the synchronous readbacks. The approach was discarded. The same runs show the wait depends on content: 38–72 ms for mostly flat screens, 640–790 ms for photographs. Encoding the merged image with `compression=1` took 14–54 ms and produced files 1.3–2.6 times larger.
+
+Since no JavaScript path yields the pixels before the helper's PNG finishes, the export now closes the overlay as soon as the helper returns from its synchronous readback (`export-composite-sync`), and encodes and delivers in the background. Pending in a real session: the overlay disappears without the previous delay; the clipboard or file is complete when the notification appears; a paste before the notification yields the previous clipboard content; a failed save after the overlay closed is reported by notification.
+
+For an extension installed in the user's extension directory, enable timing and watch the log:
+
+```sh
+gsettings --schemadir "$HOME/.local/share/gnome-shell/extensions/mirx@devidence.dev/schemas" set org.gnome.shell.extensions.mirx perf-log true
+journalctl --user -b -f -o cat | rg 'mirx-perf'
+```
+
+Copy the same content first as a small selection and then as a full monitor, without annotations. Repeat with annotations, and save both sizes as PNG and JPG. Record physical dimensions, display scale, GNOME version and three runs per case. Keep image content comparable because PNG encoding cost also depends on its content.
+
+- `export-paint`: export preparation, temporary decoration hiding and the synchronous GPU stage paint. The line includes physical output dimensions and monitor scale.
+- `export-composite-sync`: time spent inside the native composite call before it returns. In [GNOME Shell 50](https://github.com/GNOME/gnome-shell/blob/50.0/src/shell-screenshot.c#L1053-L1141), this includes texture readback, pixbuf conversion and scheduling PNG encoding.
+- `export-png-wait`: time from the native call returning until its completion callback, including PNG encoding and callback scheduling. The Shell helper always encodes PNG, including before our JPG save path.
+- `export-clipboard`: submitting the PNG bytes to the clipboard; excludes a receiving application's later paste or decode.
+- `export-file-prepare`: resolving/creating the output directory and opening a unique file.
+- `export-png-write` / `export-jpeg-and-write`: writing/closing PNG output, or removing alpha, encoding JPG and writing/closing it.
+- `export`: existing total time from the export input event through delivery. Phase times do not include all setup, so they need not sum exactly to this total.
+
+No image pixels, file paths or screenshot contents are logged. Turn timing off after collecting the comparison:
+
+```sh
+gsettings --schemadir "$HOME/.local/share/gnome-shell/extensions/mirx@devidence.dev/schemas" set org.gnome.shell.extensions.mirx perf-log false
+```
