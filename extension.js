@@ -28,7 +28,11 @@ export default class MirxExtension extends Extension {
                     iconDir: `${this.path}/icons/tools`,
                     perfLog: () => this._settings.get_boolean('perf-log'),
                 }),
-            output: new GpuImageOutput({ notify: (title, body) => Main.notify(title, body) }),
+            output: new GpuImageOutput({
+                notify: (title, body) => Main.notify(title, body),
+                // Background delivery can log after disable() has cleared the settings.
+                perfLog: () => this._settings?.get_boolean('perf-log') ?? false,
+            }),
             settings: () => ({
                 ...readAppearance(this._settings),
                 folder: this._settings.get_string('folder'),

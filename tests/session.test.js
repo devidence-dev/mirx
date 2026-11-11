@@ -402,3 +402,68 @@ test('failed view opening invalidates retained preference callback', async () =>
     editor.setStyle({ color: '#0088ff' });
     assert.deepEqual(writes, []);
 });
+
+test('overlay closes when the output holds the pixels and delivery still completes or reports', async () => {
+    for (const fail of [false, true]) {
+        const f = fixture();
+        const view = await f.open();
+        select(view);
+        const output = deferred();
+        f.setOutput(() => output.promise);
+        const exporting = view.onExport('copy');
+        const operation = f.calls[0].args[4];
+        operation.onCaptured();
+        assert.equal(view.destroys, 1);
+        assert.equal(operation.isCancelled(), false);
+        // A new capture may start while the previous one is still encoding.
+        const next = await f.open();
+        if (fail) output.reject(new Error('encode failed'));
+        else output.resolve();
+        await exporting;
+        assert.equal(view.destroys, 1);
+        assert.equal(next.destroys, 0);
+        assert.deepEqual(next.errors, []);
+        assert.deepEqual(f.notifications, fail ? [['Could not export the capture', 'encode failed']] : []);
+    }
+});
+
+test('a newer copy cancels an older copy but never a save', async () => {
+    const f = fixture();
+    const first = await f.open();
+    select(first);
+    const output = deferred();
+    f.setOutput(() => output.promise);
+    const copying = first.onExport('copy');
+    const older = f.calls[0].args[4];
+    older.onCaptured();
+    const second = await f.open();
+    select(second);
+    const saving = second.onExport('save');
+    const save = f.calls[1].args[5];
+    save.onCaptured();
+    assert.equal(older.isCancelled(), false);
+    const third = await f.open();
+    select(third);
+    const newer = third.onExport('copy');
+    const latest = f.calls[2].args[4];
+    assert.equal(older.isCancelled(), true);
+    assert.equal(latest.isCancelled(), false);
+    assert.equal(save.isCancelled(), false);
+    output.resolve();
+    await Promise.all([copying, saving, newer]);
+});
+
+test('a cancelled export ignores a late capture announcement', async () => {
+    const f = fixture();
+    const view = await f.open();
+    select(view);
+    const output = deferred();
+    f.setOutput(() => output.promise);
+    const exporting = view.onExport('copy');
+    const operation = f.calls[0].args[4];
+    view.onCancel();
+    operation.onCaptured();
+    assert.equal(operation.isCancelled(), true);
+    output.resolve();
+    await exporting;
+});

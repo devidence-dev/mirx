@@ -65,32 +65,50 @@ function writeAndClose(file, stream, writeContent) {
 }
 
 export class ImageOutput {
-    constructor({ notify = () => {} } = {}) {
+    constructor({ notify = () => {}, perfLog = () => false } = {}) {
         this._notify = notify;
+        this._perfLog = perfLog;
+    }
+
+    _time(phase, details = '') {
+        if (!this._perfLog()) return () => {};
+        const start = GLib.get_monotonic_time();
+        return () => {
+            const elapsed = (GLib.get_monotonic_time() - start) / 1000;
+            console.log(`mirx-perf ${phase} ms=${elapsed}${details ? ` ${details}` : ''}`);
+        };
     }
 
     async copy(snapshot, selection, annotations, monitor, operation = {}) {
         const { isCancelled = () => false } = operation;
         const { pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
         if (isCancelled()) return;
+        const delivered = this._time('export-clipboard');
         St.Clipboard.get_default().set_content(St.ClipboardType.CLIPBOARD, 'image/png', pngBytes);
+        delivered();
         operation.onComplete?.();
         this._notify('Capture copied', 'The image was copied to the clipboard.');
     }
 
     async save(snapshot, selection, annotations, monitor, { folder, format = 'PNG' }, operation = {}) {
         const { isCancelled = () => false } = operation;
+        // Validate the folder before rendering: render() may close the overlay, and a configuration
+        // error must still leave the session open so the user can retry.
+        const dir = ensureDirectory(resolveFolder(folder));
         const { pixbuf, pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
         if (isCancelled()) return null;
-        const dir = ensureDirectory(resolveFolder(folder));
+        const prepared = this._time('export-file-prepare');
         const jpeg = ['jpg', 'jpeg'].includes(format.toLowerCase());
         const extension = jpeg ? 'jpg' : 'png';
         const timestamp = snapshot.capturedAt ?? GLib.DateTime.new_now_local().format('%Y-%m-%d_%H-%M-%S');
         const { file, stream } = createUniqueFile(dir, timestamp, extension);
+        prepared();
+        const written = this._time(jpeg ? 'export-jpeg-and-write' : 'export-png-write');
         writeAndClose(file, stream, () => {
             if (jpeg) opaque(pixbuf).save_to_streamv(stream, 'jpeg', [], [], null);
             else stream.write_all(pngBytes.get_data(), null);
         });
+        written();
         operation.onComplete?.();
         const path = file.get_path();
         this._notify('Capture saved', path);

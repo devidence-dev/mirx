@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { alignedPaintRect, physicalRect } from '../src/core/geometry.js';
 
-async function load() {
+async function load({ deferComposite = false } = {}) {
     const outputSource = (await readFile(new URL('../src/platform/imageOutput.js', import.meta.url), 'utf8'))
         .replace(/^import [^;]*;\n/gm, '')
         .replace('export class ImageOutput', 'class ImageOutput');
@@ -68,7 +68,13 @@ async function load() {
         },
         Clutter: { PaintFlag: { NO_CURSORS: 7 } },
         Mtk: { Rectangle: { new: (...args) => args } },
-        GLib: { path_is_absolute: (path) => path.startsWith('/') },
+        GLib: {
+            path_is_absolute: (path) => path.startsWith('/'),
+            get_monotonic_time: () => {
+                throw new Error('Disabled export profiling must not read the clock');
+            },
+        },
+        console: { log: (message) => events.push(['perf', message]) },
         GdkPixbuf: {
             Colorspace: { RGB: 0 },
             InterpType: { NEAREST: 0 },
@@ -93,7 +99,8 @@ async function load() {
             Screenshot: {
                 composite_to_stream: (...args) => {
                     events.push(args.slice(0, -1));
-                    args.at(-1)(null, 'result');
+                    if (deferComposite) queueMicrotask(() => args.at(-1)(null, 'result'));
+                    else args.at(-1)(null, 'result');
                 },
                 composite_to_stream_finish: () => pixbuf,
             },
@@ -131,6 +138,56 @@ test('GPU copy paints on the physical grid and reuses the compositor PNG', async
     assert.equal(events[6][2], 'image/png');
     assert.equal(events[6][3], bytes);
     assert.deepEqual(events.slice(7), ['complete', 'notify']);
+});
+
+test('export profiling separates paint, synchronous readback setup, PNG wait and clipboard delivery', async () => {
+    const { Output, context, events, bytes } = await load();
+    let now = 0;
+    context.GLib.get_monotonic_time = () => now;
+    context.global.stage.paint_to_content = () => {
+        now += 1000;
+        return { get_texture: () => 'texture' };
+    };
+    context.Shell.Screenshot.composite_to_stream = (...args) => {
+        now += 2500;
+        queueMicrotask(() => {
+            now += 500000;
+            args.at(-1)(null, 'result');
+        });
+    };
+    await new Output({ perfLog: () => true }).copy(snapshot, selection, [], monitor, operation);
+    const timings = events.filter((event) => event[0] === 'perf').map((event) => event[1]);
+    assert.deepEqual(timings, [
+        `mirx-perf export-paint ms=1 pixels=800x533 scale=${monitor.scale}`,
+        'mirx-perf export-composite-sync ms=2.5',
+        'mirx-perf export-png-wait ms=500',
+        'mirx-perf export-clipboard ms=0',
+    ]);
+    assert.equal(events.find((event) => event[0] === 'clipboard')[3], bytes);
+});
+
+test('file export profiling identifies PNG write versus JPEG encoding and write', async () => {
+    for (const format of ['PNG', 'JPG']) {
+        const { Output, context, events } = await load({ deferComposite: true });
+        let now = 0;
+        context.GLib.get_monotonic_time = () => (now += 1000);
+        await new Output({ perfLog: () => true }).save(
+            snapshot,
+            selection,
+            [],
+            monitor,
+            { folder: '/screenshots', format },
+            operation,
+        );
+        const phases = events.filter((event) => event[0] === 'perf').map((event) => event[1].split(' ')[1]);
+        assert.deepEqual(phases, [
+            'export-paint',
+            'export-composite-sync',
+            'export-png-wait',
+            'export-file-prepare',
+            format === 'PNG' ? 'export-png-write' : 'export-jpeg-and-write',
+        ]);
+    }
 });
 
 test('PNG save writes the compositor bytes and JPG encodes the pixbuf', async () => {
@@ -274,6 +331,30 @@ test('directory creation failure propagates without completion or notification',
     assert.equal(events.includes('notify'), false);
 });
 
+test('a folder error rejects before the capture is announced or rendered', async () => {
+    const { Output, context } = await load();
+    let captured = false;
+    let composited = false;
+    const composite = context.Shell.Screenshot.composite_to_stream;
+    context.Shell.Screenshot.composite_to_stream = (...args) => {
+        composited = true;
+        composite(...args);
+    };
+    await assert.rejects(
+        new Output().save(
+            snapshot,
+            selection,
+            [],
+            monitor,
+            { folder: 'relative/dir' },
+            { ...operation, onCaptured: () => (captured = true) },
+        ),
+        /absolute path/,
+    );
+    assert.equal(captured, false);
+    assert.equal(composited, false);
+});
+
 test('compositor failure closes its stream and invalid dimensions fail export', async () => {
     const failed = await load();
     failed.context.Shell.Screenshot.composite_to_stream_finish = () => {
@@ -322,4 +403,15 @@ test('unaligned fallback validates the full texture dimensions', async () => {
         new Output().render(snapshot, { x: 1, y: 1, width: 601, height: 400 }, [], { scale: 1.37 }, operation),
         /expected 823x548/,
     );
+});
+
+test('capture is announced after readback and before the PNG completes', async () => {
+    const { Output, events } = await load({ deferComposite: true });
+    await new Output().copy(snapshot, selection, [], monitor, {
+        ...operation,
+        onCaptured: () => events.push('captured'),
+    });
+    const captured = events.indexOf('captured');
+    assert.equal(events[captured - 1][0], 'texture');
+    assert.equal(events[captured + 1], 'close');
 });

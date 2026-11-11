@@ -2,7 +2,7 @@
   "uuid": "mirx@devidence.dev",
   "name": "mirx",
   "description": "Take screenshots of a window, area or monitor and annotate them with numbered markers, gradients, a magnifier and alignment guides. Everything stays local.",
-  "version-name": "0.1.0",
+  "version-name": "0.1.1",
   "url": "https://github.com/devidence-dev/mirx",
   "shell-version": ["50"],
   "settings-schema": "org.gnome.shell.extensions.mirx"

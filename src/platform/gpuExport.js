@@ -20,6 +20,7 @@ export class GpuImageOutput extends ImageOutput {
         // An aligned rectangle makes the stage render 1:1 on the physical grid; the texture is cropped below.
         const aligned = alignedPaintRect(physical, scale);
         const paint = aligned?.rect ?? selection;
+        const painted = this._time('export-paint', `pixels=${width}x${height} scale=${scale}`);
         const content = operation.withExportContent(() =>
             global.stage.paint_to_content(
                 Mtk.Rectangle.new(paint.x, paint.y, paint.width, paint.height),
@@ -28,6 +29,7 @@ export class GpuImageOutput extends ImageOutput {
                 Clutter.PaintFlag.NO_CURSORS,
             ),
         );
+        painted();
         const texture = content?.get_texture();
         if (!texture) throw new Error('Clutter.Stage.paint_to_content did not return a usable texture');
         const stream = Gio.MemoryOutputStream.new_resizable();
@@ -35,6 +37,10 @@ export class GpuImageOutput extends ImageOutput {
         try {
             // Shell-18.gir:1698,1744: composite only the already cropped texture.
             pixbuf = await new Promise((resolve, reject) => {
+                // Shell performs GPU readback and pixbuf conversion before this call returns;
+                // PNG encoding completes asynchronously. Separate call time from callback wait.
+                const submitted = this._time('export-composite-sync');
+                let encoded = () => {};
                 Shell.Screenshot.composite_to_stream(
                     texture,
                     aligned?.offsetX ?? 0,
@@ -48,6 +54,7 @@ export class GpuImageOutput extends ImageOutput {
                     1,
                     stream,
                     (_source, result) => {
+                        encoded();
                         try {
                             resolve(Shell.Screenshot.composite_to_stream_finish(result));
                         } catch (error) {
@@ -55,6 +62,10 @@ export class GpuImageOutput extends ImageOutput {
                         }
                     },
                 );
+                submitted();
+                encoded = this._time('export-png-wait');
+                // The pixels now live in CPU memory; the caller may close its UI while the PNG encodes.
+                operation.onCaptured?.();
             });
             stream.close(null);
             pngBytes = stream.steal_as_bytes();
