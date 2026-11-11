@@ -17,7 +17,8 @@ export function formatAccelerator(accelerator) {
     const match = /^((?:<[A-Za-z0-9_]+>)*)([^<>\s]+)$/.exec(typeof accelerator === 'string' ? accelerator.trim() : '');
     if (!match) return '';
     const parts = [];
-    for (const [, name] of match[1].matchAll(/<([^>]+)>/g)) {
+    const modifiers = match[1] ? match[1].slice(1, -1).split('><') : [];
+    for (const name of modifiers) {
         const label = MODIFIERS[name.toLowerCase()];
         if (!label) return '';
         if (!parts.includes(label)) parts.push(label);
@@ -25,6 +26,6 @@ export function formatAccelerator(accelerator) {
     const key = match[2];
     // Single characters and F-keys are upper-cased; named keys (Print, space, Page_Up) get a capital and spaces.
     const named = key.length > 1 && !/^[Ff]\d+$/.test(key);
-    parts.push(named ? key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : key.toUpperCase());
+    parts.push(named ? key.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase()) : key.toUpperCase());
     return parts.join('+');
 }
