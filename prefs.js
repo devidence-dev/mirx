@@ -78,7 +78,7 @@ export default class MirxPreferences extends ExtensionPreferences {
         addChoice('Enter action', 'enter-action', ['copy', 'save'], ['Copy', 'Save']);
         addChoice('Image format', 'format', ['PNG', 'JPG'], ['PNG', 'JPG']);
 
-        const validFolder = (text) => text.startsWith('/') || text.startsWith('~/');
+        const validFolder = (text) => text === '~' || text.startsWith('/') || text.startsWith('~/');
         const folder = new Adw.EntryRow({ title: 'Capture folder', show_apply_button: true });
         folder.text = settings.get_string('folder');
         folder.connect('changed', () => {
@@ -92,7 +92,7 @@ export default class MirxPreferences extends ExtensionPreferences {
             if (validFolder(folder.text)) {
                 settings.set_string('folder', folder.text);
             } else {
-                window.add_toast(new Adw.Toast({ title: 'The folder must start with / or ~/' }));
+                window.add_toast(new Adw.Toast({ title: 'The folder must be ~ or start with / or ~/' }));
             }
         });
         watch('changed::folder', () => {

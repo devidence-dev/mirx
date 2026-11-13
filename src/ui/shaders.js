@@ -156,27 +156,22 @@ float a = clamp(radius - d + 0.5, 0.0, 1.0);
 cogl_color_out = texel * a;
 `;
 
-export const RING_DECLARATIONS = `
+export const CROSS_DECLARATIONS = `
 uniform vec2 textureSize;
 uniform vec2 contentOffset;
-uniform float ringPixel;
-uniform float ringHalf;
-uniform float ringRadius;
-uniform float ringInner;
-uniform float ringOuter;
+uniform float crossPixel;
+uniform float crossHalf;
+uniform float crossOuter;
 `;
 
-export const RING_CODE = `
-// Ring-local physical pixels, centred on the target pixel centre.
-vec2 p = (cogl_tex_coord_in[0].xy * textureSize - contentOffset) / ringPixel - vec2(ringHalf + 0.5);
+export const CROSS_CODE = `
+// Cross-local physical pixels, centred on the target pixel centre.
+vec2 p = (cogl_tex_coord_in[0].xy * textureSize - contentOffset) / crossPixel - vec2(crossHalf + 0.5);
 vec2 a = abs(p);
-float circle = abs(length(p) - ringRadius);
-float tickH = max(a.y, max(ringInner - a.x, a.x - ringOuter));
-float tickV = max(a.x, max(ringInner - a.y, a.y - ringOuter));
-float d = min(circle, min(max(tickH, 0.0), max(tickV, 0.0)));
-float core = clamp(1.0 - d, 0.0, 1.0);
-float disc = clamp(ringRadius - length(p) + 0.5, 0.0, 1.0);
-// Premultiplied layers: translucent grey disc under a 1 px mid-grey line, as in the guides.
-vec4 under = vec4(vec3(0.5), 1.0) * 0.28 * disc;
-cogl_color_out = (vec4(vec3(0.55), 1.0) * 0.9 * core + under * (1.0 - 0.9 * core)) * cogl_color_in.a;
+float d = min(max(a.y, a.x - crossOuter), max(a.x, a.y - crossOuter));
+float core = 1.0 - step(0.5, d);
+float outline = 1.0 - step(1.5, d);
+// One white physical pixel with a narrow dark edge; all space between the arms is transparent.
+vec4 edge = vec4(vec3(0.04), 1.0) * 0.85;
+cogl_color_out = (vec4(1.0) * core + edge * (outline - core)) * cogl_color_in.a;
 `;

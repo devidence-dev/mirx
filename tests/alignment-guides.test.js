@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { alignmentGuideGeometry } from '../src/rendering/alignmentGuideGeometry.js';
-import { GUIDE_CODE, GUIDE_DECLARATIONS, RING_CODE, RING_DECLARATIONS } from '../src/ui/shaders.js';
+import { CROSS_CODE, CROSS_DECLARATIONS, GUIDE_CODE, GUIDE_DECLARATIONS } from '../src/ui/shaders.js';
 
 class Actor {
     constructor(properties = {}) {
@@ -82,21 +82,21 @@ const AlignmentGuides = vm.runInNewContext(source, {
     alignmentGuideGeometry,
     GUIDE_CODE,
     GUIDE_DECLARATIONS,
-    RING_CODE,
-    RING_DECLARATIONS,
+    CROSS_CODE,
+    CROSS_DECLARATIONS,
     textureUniforms: () => ({ textureSize: [10, 3], contentOffset: [0, 0], extent: [7, 3] }),
     setUniforms: (_effect, values) => uniforms.push(values),
 });
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const monitor = { x: 100, y: 50, width: 400, height: 300, scale: 2 };
 
-test('guides are inert and made of two strips and a ring with their shader snippets', () => {
+test('guides are inert and made of two strips and a cross with their shader snippets', () => {
     const guides = new AlignmentGuides({ scale: 2 });
     assert.equal(guides.actor.reactive, false);
     assert.equal(guides.actor.can_focus, false);
     assert.equal(guides.actor.visible, false);
     assert.equal(guides.actor.children.length, 4);
-    const [horizontal, vertical, ring] = guides.actor.children;
+    const [horizontal, vertical, cross] = guides.actor.children;
     for (const strip of [horizontal, vertical]) {
         assert.equal(strip.reactive, false);
         assert.equal(strip.effect.snippet[1], GUIDE_DECLARATIONS);
@@ -104,15 +104,15 @@ test('guides are inert and made of two strips and a ring with their shader snipp
         // The texture alpha masks the uneven offscreen padding, so the halo is symmetric.
         assert.ok(GUIDE_DECLARATIONS.includes('uniform sampler2D tex;') && GUIDE_CODE.includes('* coverage *'));
     }
-    assert.equal(ring.reactive, false);
-    assert.equal(ring.effect.snippet[1], RING_DECLARATIONS);
-    assert.equal(ring.effect.snippet[2], RING_CODE);
+    assert.equal(cross.reactive, false);
+    assert.equal(cross.effect.snippet[1], CROSS_DECLARATIONS);
+    assert.equal(cross.effect.snippet[2], CROSS_CODE);
 });
 
-test('the coordinates label is the last child of a clipped container, above the ring, and inert', () => {
+test('the coordinates label is the last child of a clipped container, above the cross, and inert', () => {
     const guides = new AlignmentGuides({ scale: 2 });
     assert.equal(guides.actor.clip_to_allocation, true);
-    assert.equal(guides.actor.children[2].effect.snippet[2], RING_CODE);
+    assert.equal(guides.actor.children[2].effect.snippet[2], CROSS_CODE);
     const label = guides.actor.children.at(-1);
     assert.equal(label, guides._label);
     assert.equal(label.style_class, 'mirx-cursor-coordinates');
@@ -218,31 +218,31 @@ test('the effect uploads physical-pixel uniforms for its strip when painted', ()
     assert.deepEqual(plain(uniforms[1].guideVertical), [0]);
 });
 
-test('ring follows the geometry and is reused, not recreated or rewritten when unchanged', () => {
+test('cross follows the geometry and is reused, not recreated or rewritten when unchanged', () => {
     const guides = new AlignmentGuides({ scale: 2 });
-    const ring = guides.actor.children[2];
+    const cross = guides.actor.children[2];
     const point = { x: 150.3, y: 90.7 };
     guides.update(point, monitor, true);
     const g = alignmentGuideGeometry(point, monitor, 2);
-    assert.deepEqual(ring.position, [g.ring.x, g.ring.y]);
-    assert.deepEqual(ring.size, [g.ring.size, g.ring.size]);
-    assert.deepEqual(plain(ring.effect.ring), { ...plain(g.ring), scale: 2 });
-    const writes = ring.writes,
-        redraws = ring.redraws;
+    assert.deepEqual(cross.position, [g.cross.x, g.cross.y]);
+    assert.deepEqual(cross.size, [g.cross.size, g.cross.size]);
+    assert.deepEqual(plain(cross.effect.cross), { ...plain(g.cross), scale: 2 });
+    const writes = cross.writes,
+        redraws = cross.redraws;
     guides.update({ ...point }, monitor, true);
-    assert.equal(ring.writes, writes);
-    assert.equal(ring.redraws, redraws);
+    assert.equal(cross.writes, writes);
+    assert.equal(cross.redraws, redraws);
     guides.update({ x: 190, y: 120 }, { ...monitor, x: 0, y: 0, scale: 1 }, true);
     assert.equal(guides.actor.children.length, 4);
-    assert.equal(guides.actor.children[2], ring);
+    assert.equal(guides.actor.children[2], cross);
     const moved = alignmentGuideGeometry({ x: 190, y: 120 }, { ...monitor, x: 0, y: 0, scale: 1 }, 2);
-    assert.deepEqual(ring.position, [moved.ring.x, moved.ring.y]);
-    assert.equal(ring.effect.ring.scale, 1);
+    assert.deepEqual(cross.position, [moved.cross.x, moved.cross.y]);
+    assert.equal(cross.effect.cross.scale, 1);
 });
 
-test('the ring hides with the container when not visible or without a monitor', () => {
+test('the cross hides with the container when not visible or without a monitor', () => {
     const guides = new AlignmentGuides({ scale: 2 });
-    const ring = guides.actor.children[2];
+    const cross = guides.actor.children[2];
     guides.update({ x: 150, y: 90 }, monitor, true);
     assert.equal(guides.actor.visible, true);
     guides.update({ x: 150, y: 90 }, monitor, false);
@@ -252,25 +252,20 @@ test('the ring hides with the container when not visible or without a monitor', 
     assert.equal(guides.actor.visible, false);
     guides.update({ x: 150, y: 90 }, monitor, true);
     assert.equal(guides.actor.visible, true);
-    assert.equal(guides.actor.children[2], ring);
+    assert.equal(guides.actor.children[2], cross);
 });
 
-test('the ring effect uploads physical-pixel uniforms when painted', () => {
+test('the cross effect uploads physical-pixel uniforms when painted', () => {
     const guides = new AlignmentGuides({ scale: 2 });
     const point = { x: 150, y: 90 };
     guides.update(point, { ...monitor, scale: 4 / 3 }, true);
-    const ring = guides.actor.children[2];
+    const cross = guides.actor.children[2];
     const g = alignmentGuideGeometry(point, { ...monitor, scale: 4 / 3 }, 2);
-    ring.resourceScale = 2;
+    cross.resourceScale = 2;
     uniforms.length = 0;
-    ring.effect.vfunc_paint_target();
+    cross.effect.vfunc_paint_target();
     const [values] = uniforms;
-    assert.deepEqual(plain([values.ringHalf, values.ringRadius, values.ringInner, values.ringOuter]), [
-        [g.ring.half],
-        [g.ring.radius],
-        [g.ring.inner],
-        [g.ring.outer],
-    ]);
-    assert.ok(Math.abs(values.ringPixel[0] - 1.5) < 1e-9);
-    assert.equal(ring.effect.painted, true);
+    assert.deepEqual(plain([values.crossHalf, values.crossOuter]), [[g.cross.half], [g.cross.outer]]);
+    assert.ok(Math.abs(values.crossPixel[0] - 1.5) < 1e-9);
+    assert.equal(cross.effect.painted, true);
 });

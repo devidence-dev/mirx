@@ -100,26 +100,28 @@ test('guides are solid: no dash or period, long axis starts at the monitor origi
     assert.deepEqual([a.horizontal.x, a.horizontal.width], [b.horizontal.x, b.horizontal.width]); // long axis starts at origin
 });
 
-test('ring disc, cross and extent follow the reference at scales 1, 2 and 4/3', () => {
-    for (const [scale, radius, outer, half] of [
-        [1, 8, 14, 17],
-        [2, 16, 29, 33],
-        [4 / 3, 11, 19, 22],
-    ]) {
-        const { ring } = alignmentGuideGeometry(
+test('cross core stays within 21 logical units with just one physical pixel of outline', () => {
+    for (const scale of [1, 1.25, 4 / 3, 1.5, 1.75, 2, 3]) {
+        const { cross } = alignmentGuideGeometry(
             { x: 50, y: 50 },
             { x: 0, y: 0, width: 100, height: 100, scale },
             scale,
         );
-        assert.deepEqual([ring.radius, ring.inner, ring.outer, ring.half], [radius, 0, outer, half]);
+        assert.ok((2 * cross.outer + 1) / scale <= 21);
+        assert.ok((2 * cross.outer + 3) / scale > 21); // longest odd physical span that fits
+        near(cross.half - cross.outer, 1); // outline reaches exactly one pixel beyond each tip
+        near(cross.size * scale, 2 * cross.outer + 3);
+        assert.equal('radius' in cross || 'inner' in cross, false);
     }
 });
 
-test('ring is an odd physical square centred on the strips core at every scale and corner', () => {
+test('cross is an odd physical square centred on the strips core at every scale and corner', () => {
     for (const [scale, texture] of [
         [1, 1],
         [2, 2],
         [4 / 3, 4 / 3],
+        [4 / 3, 2],
+        [2, 1],
     ]) {
         for (const monitor of [
             { x: 0, y: 0, width: 800, height: 600 },
@@ -135,19 +137,15 @@ test('ring is an odd physical square centred on the strips core at every scale a
             for (const [fx, fy] of corners) {
                 const point = { x: monitor.x + fx, y: monitor.y + fy };
                 const g = alignmentGuideGeometry(point, { ...monitor, scale }, texture);
-                const { ring } = g;
-                near(ring.x * scale + ring.half + 0.5, g.vertical.x * scale + g.vertical.core + 0.5);
-                near(ring.y * scale + ring.half + 0.5, g.horizontal.y * scale + g.horizontal.core + 0.5);
-                near(ring.size * scale, 2 * ring.half + 1);
-                grid(ring.size, scale);
-                assert.equal(Math.round(ring.size * scale) % 2, 1);
-                grid(ring.x, scale);
-                grid(ring.y, scale);
-                assert.ok(
-                    ring.radius < ring.outer && ring.outer < ring.half,
-                    `${scale} ${ring.radius} ${ring.outer} ${ring.half}`,
-                );
-                assert.equal(ring.inner, 0); // the cross passes through the centre
+                const { cross } = g;
+                near(cross.x * scale + cross.half + 0.5, g.vertical.x * scale + g.vertical.core + 0.5);
+                near(cross.y * scale + cross.half + 0.5, g.horizontal.y * scale + g.horizontal.core + 0.5);
+                near(cross.size * scale, 2 * cross.half + 1);
+                grid(cross.size, scale);
+                assert.equal(Math.round(cross.size * scale) % 2, 1);
+                grid(cross.x, scale);
+                grid(cross.y, scale);
+                assert.ok(cross.outer < cross.half);
             }
         }
     }

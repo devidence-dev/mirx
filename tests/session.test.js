@@ -427,6 +427,32 @@ test('overlay closes when the output holds the pixels and delivery still complet
     }
 });
 
+test('disable cancels an uncaptured export but allows captured delivery to finish', async () => {
+    for (const captured of [false, true]) {
+        for (const fail of [false, true]) {
+            const f = fixture();
+            const view = await f.open();
+            select(view);
+            const output = deferred();
+            f.setOutput(() => output.promise);
+            const exporting = view.onExport('copy');
+            const operation = f.calls[0].args[4];
+            if (captured) operation.onCaptured();
+            f.session.destroy();
+            assert.equal(operation.isCancelled(), !captured);
+            assert.equal(view.destroys, 1);
+            if (fail) output.reject(new Error('delivery failed'));
+            else output.resolve();
+            await exporting;
+            assert.deepEqual(
+                f.notifications,
+                captured && fail ? [['Could not export the capture', 'delivery failed']] : [],
+            );
+            assert.equal(view.destroys, 1);
+        }
+    }
+});
+
 test('a newer copy cancels an older copy but never a save', async () => {
     const f = fixture();
     const first = await f.open();
@@ -453,6 +479,23 @@ test('a newer copy cancels an older copy but never a save', async () => {
     await Promise.all([copying, saving, newer]);
 });
 
+test('an older copy failing after a newer copy starts does not report a stale error', async () => {
+    const f = fixture();
+    const first = await f.open();
+    select(first);
+    const oldOutput = deferred();
+    f.setOutput(() => oldOutput.promise);
+    const oldCopy = first.onExport('copy');
+    f.calls[0].args[4].onCaptured();
+    const second = await f.open();
+    select(second);
+    f.setOutput(() => Promise.resolve());
+    await second.onExport('copy');
+    oldOutput.reject(new Error('old copy failed'));
+    await oldCopy;
+    assert.deepEqual(f.notifications, []);
+});
+
 test('a cancelled export ignores a late capture announcement', async () => {
     const f = fixture();
     const view = await f.open();
@@ -466,4 +509,29 @@ test('a cancelled export ignores a late capture announcement', async () => {
     assert.equal(operation.isCancelled(), true);
     output.resolve();
     await exporting;
+});
+
+test('session reports open and export phase timings through the injected timer', async () => {
+    const phases = [];
+    let view;
+    const session = new CaptureSession({
+        capture: { capture: async () => snapshot },
+        createEditor: (options) => new Editor(options),
+        createView: (args) =>
+            (view = { ...args, open() {}, destroy() {}, setBusy() {}, withExportContent: (f) => f() }),
+        output: {
+            copy: async (_s, _sel, _a, _m, operation) => {
+                operation.onCaptured();
+            },
+        },
+        settings: () => ({ color: '#ff0000', width: 3, enterAction: 'copy', folder: '/x' }),
+        notifyError() {},
+        time: (phase) => () => phases.push(phase),
+    });
+    await session.open();
+    assert.deepEqual(phases, ['open-capture', 'open-view', 'open']);
+    view.editor.selectMonitor({ x: 10, y: 10 });
+    phases.length = 0;
+    await session.export('copy', snapshot, view.editor, () => {});
+    assert.deepEqual(phases, ['close-view', 'export-to-close', 'session-export']);
 });

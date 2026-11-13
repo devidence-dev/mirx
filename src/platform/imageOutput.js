@@ -45,22 +45,16 @@ function createUniqueFile(dir, timestamp, extension) {
     }
 }
 
-function writeAndClose(file, stream, writeContent) {
+function discardFile(file, stream) {
     try {
-        writeContent();
         stream.close(null);
-    } catch (error) {
-        try {
-            stream.close(null);
-        } catch (_) {
-            /* preserve original error */
-        }
-        try {
-            file.delete(null);
-        } catch (_) {
-            /* preserve original error */
-        }
-        throw error;
+    } catch (_) {
+        /* preserve original error */
+    }
+    try {
+        file.delete(null);
+    } catch (_) {
+        /* preserve original error */
     }
 }
 
@@ -94,21 +88,28 @@ export class ImageOutput {
         const { isCancelled = () => false } = operation;
         // Validate the folder before rendering: render() may close the overlay, and a configuration
         // error must still leave the session open so the user can retry.
-        const dir = ensureDirectory(resolveFolder(folder));
-        const { pixbuf, pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
-        if (isCancelled()) return null;
         const prepared = this._time('export-file-prepare');
+        const dir = ensureDirectory(resolveFolder(folder));
         const jpeg = ['jpg', 'jpeg'].includes(format.toLowerCase());
         const extension = jpeg ? 'jpg' : 'png';
         const timestamp = snapshot.capturedAt ?? GLib.DateTime.new_now_local().format('%Y-%m-%d_%H-%M-%S');
         const { file, stream } = createUniqueFile(dir, timestamp, extension);
         prepared();
-        const written = this._time(jpeg ? 'export-jpeg-and-write' : 'export-png-write');
-        writeAndClose(file, stream, () => {
+        try {
+            const { pixbuf, pngBytes } = await this.render(snapshot, selection, annotations, monitor, operation);
+            if (isCancelled()) {
+                discardFile(file, stream);
+                return null;
+            }
+            const written = this._time(jpeg ? 'export-jpeg-and-write' : 'export-png-write');
             if (jpeg) opaque(pixbuf).save_to_streamv(stream, 'jpeg', [], [], null);
             else stream.write_all(pngBytes.get_data(), null);
-        });
-        written();
+            stream.close(null);
+            written();
+        } catch (error) {
+            discardFile(file, stream);
+            throw error;
+        }
         operation.onComplete?.();
         const path = file.get_path();
         this._notify('Capture saved', path);

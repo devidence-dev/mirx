@@ -14,7 +14,7 @@ Targets **GNOME Shell 50 on Wayland**, tested on Ubuntu 26.04 LTS (GNOME Shell 5
 
 - 🎯 **Three ways to select**: drag an area, click a window, or click empty space (desktop or top bar) or press Ctrl+A for the whole monitor under the pointer. A selection stays within one monitor.
 - 🔍 **Magnifier** with a band crosshair and live cursor coordinates.
-- 📐 **Alignment guides**: thin guides span the monitor under the pointer, with a translucent circle-and-cross mark on the pixel you are aiming at.
+- 📐 **Alignment guides**: thin guides span the monitor under the pointer, with a single compact thin cross on the pixel you are aiming at. Coordinates keep their `x:`/`y:` badge beside the pointer.
 - ✏️ **Annotation tools**: arrow, rectangle, ellipse, numbered marker, highlighter, pixelate and text. Seven colours, stroke width 1-30 px.
 - ① **Numbered markers** that renumber themselves when you delete one.
 - ◐ **Gradient toggle** for arrows, rectangles, ellipses and markers.
@@ -121,6 +121,14 @@ npm run coverage # tests with coverage, writes lcov.info
 npm run check    # metadata, JS syntax and schema
 npm run pack     # build dist/mirx@devidence.dev.shell-extension.zip
 ```
+
+For development on Wayland, install the extension and start a nested GNOME Shell 50 session:
+
+```sh
+dbus-run-session gnome-shell --devkit --wayland
+```
+
+Enable `mirx@devidence.dev` in the nested session and run the checks in [`tests/MANUAL.md`](tests/MANUAL.md). Restart the nested Shell after changing extension code: toggling the extension does not reload JavaScript modules. A nested Shell is not fully isolated from the host; also test display scaling and multiple monitors in a real session. See the [GNOME debugging guide](https://gjs.guide/extensions/development/debugging.html).
 
 ### 🚀 Releasing
 

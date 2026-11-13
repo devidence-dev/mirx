@@ -469,7 +469,9 @@ export class Overlay {
             interactionHandle: this.editor.interactionHandle,
             control: this._control,
         });
-        this.actor.set_cursor_type(cursorType(cursor));
+        // The GPU mark supplies the capture crosshair; keep normal control and gesture cursors.
+        const customCrosshair = cursor === 'crosshair' && aidVisible && pointerMonitor;
+        this.actor.set_cursor_type(customCrosshair ? Clutter.CursorType.NONE : cursorType(cursor));
         this._updateDecorations();
         // Each repaint is a software render plus a GPU upload of the whole canvas, so the canvases
         // cover only what they draw and the committed layer repaints only when its content changes.

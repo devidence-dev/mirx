@@ -16,6 +16,6 @@
 
 ## 4. Release (user only)
 
-- [ ] 4.1 User only: merge the `devidence-dev/workflows` change and release a `v2` bump (`minor`, or `major` for strictness)
-- [ ] 4.2 User only: merge this mirx change
-- [ ] 4.3 User only: run **Release** with `bump: minor` or `custom_tag: v0.1.0`, then check that `version-name` in the release zip's `metadata.json` matches the tag
+- [x] 4.1 User only: merge the `devidence-dev/workflows` change and release a `v2` bump (`minor`, or `major` for strictness)
+- [x] 4.2 User only: merge this mirx change
+- [x] 4.3 User only: run **Release** with `bump: minor` or `custom_tag: v0.1.0`, then check that `version-name` in the release zip's `metadata.json` matches the tag
