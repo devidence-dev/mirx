@@ -33,7 +33,9 @@ class Actor {
     get_preferred_height() {
         return [0, 10];
     }
-    set_cursor_type() {}
+    set_cursor_type(value) {
+        this.cursor = value;
+    }
     set_position(x, y) {
         this.position = [x, y];
     }
@@ -90,7 +92,7 @@ function fixture() {
             EVENT_STOP: 'stop',
             EVENT_PROPAGATE: 'propagate',
             BUTTON_PRIMARY: 1,
-            CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3 },
+            CursorType: { TEXT: 1, CROSSHAIR: 2, DEFAULT: 3, NONE: 4, NWSE_RESIZE: 5 },
             PickMode: { REACTIVE: 1 },
             ModifierType: { SHIFT_MASK: 1 },
             EventType: { KEY_PRESS: 1, MOTION: 2, BUTTON_RELEASE: 3 },
@@ -259,6 +261,46 @@ test('monitor transitions and no monitor are passed identically to both aids', (
     assertShared(f, true);
     f.overlay._motion(event(10.5, 10.5));
     assert.equal(last(f.guides).monitor, monitors[0]);
+});
+
+test('the custom capture cross suppresses the platform crosshair only while it is visible', () => {
+    const { overlay, editor } = fixture();
+    assert.equal(overlay.actor.cursor, 4); // one GPU cross at session start
+    overlay._press(event(100, 50));
+    overlay._motion(event(300, 200));
+    assert.equal(overlay.actor.cursor, 4); // selection drag
+    overlay._motion(event(900, 300));
+    assert.equal(overlay.actor.cursor, 4); // another monitor
+    overlay._motion(event(5000, 5000));
+    assert.equal(overlay.actor.cursor, 2); // no monitor: the custom aid cannot be drawn
+    overlay._motion(event(300, 200));
+    assert.equal(overlay.actor.cursor, 4);
+    overlay._release(event(300, 200));
+    overlay._motion(event(200, 120));
+    assert.equal(overlay.actor.cursor, 3); // idle inside completed selection
+    editor.setTool('rectangle');
+    overlay._refresh();
+    assert.equal(overlay.actor.cursor, 2); // annotation drawing uses its regular crosshair
+    overlay._press(event(300, 200));
+    assert.equal(editor.interaction, 'selection-resize');
+    assert.equal(overlay.actor.cursor, 5); // custom aid does not suppress the resize cursor
+});
+
+test('busy and text-edit transitions restore the platform cursor without pointer motion', () => {
+    const { overlay } = fixture();
+    assert.equal(overlay.actor.cursor, 4);
+    overlay.setBusy(true);
+    assert.equal(overlay.actor.cursor, 2);
+    overlay.setBusy(false);
+    assert.equal(overlay.actor.cursor, 4);
+    overlay._textEdit = { actor: new Actor() };
+    overlay._refresh();
+    assert.equal(overlay.actor.cursor, 2);
+    overlay._textEdit = null;
+    overlay._refresh();
+    assert.equal(overlay.actor.cursor, 4);
+    overlay.destroy();
+    assert.equal(overlay.actor.destroyed, true); // suppression belongs to the destroyed actor
 });
 
 test('dragging onto another monitor moves the aids but keeps the selection on the first one', () => {

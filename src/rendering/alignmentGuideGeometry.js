@@ -1,6 +1,6 @@
 /** Logical stage units; strips are local to the monitor origin. No GNOME imports. */
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const RING_UNITS = 16; // logical half-extent: the cross reaches 15 units, plus halo
+const CROSS_UNITS = 21; // maximum logical span of the core, including its centre pixel
 
 // Same precedence as the magnifier.
 export function guideScale(monitor, textureScale) {
@@ -29,20 +29,19 @@ export function alignmentGuideGeometry(point, monitor, textureScale) {
     const x = axis('x'),
         y = axis('y');
     // Odd physical square centred on the core pixel centre (index + 0.5); not clipped, the container clips it.
-    const half = Math.max(2, Math.round(RING_UNITS * scale)) + 1;
-    const ring = {
+    const outer = Math.max(0, Math.floor((CROSS_UNITS * scale - 1) / 2));
+    const half = outer + 1; // one physical pixel of contrast outline
+    const cross = {
         x: (x.index - half) / scale,
         y: (y.index - half) / scale,
         size: (2 * half + 1) / scale,
         half,
-        radius: Math.max(3, Math.round(8 * scale)),
-        inner: 0,
-        outer: Math.max(5, Math.round(15 * scale)) - 1,
+        outer,
     };
     return {
         scale,
         vertical: { x: x.start, y: 0, width: x.size, height: monitor.height, core: x.core },
         horizontal: { x: 0, y: y.start, width: monitor.width, height: y.size, core: y.core },
-        ring,
+        cross,
     };
 }

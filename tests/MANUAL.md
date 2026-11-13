@@ -17,8 +17,9 @@ Install the package by following the README. Record `gnome-shell --version`, the
 
    **Alignment guides** (pending, graphical checks): the horizontal and vertical thin solid guides show and hide together with the magnifier, with no measurement marks. Check that they:
    - cross at the pixel framed by the magnifier bands and follow the pointer smoothly, at 100%, 200% and approximately 133% scaling, moving in sub-pixel steps;
-   - show a translucent circle with a thin grey cross, extending beyond the circle, centred on the intersection, sharp at 100%, 200% and approximately 133% scaling;
-   - keep the circle and cross legible over light, dark and busy content;
+   - show a compact thin white cross with a narrow dark edge, no disc or circular outline, centred on the intersection and sharp at 100%, 200% and approximately 133% scaling; its core spans at most 21 logical units per axis;
+   - keep the cross legible over light, dark and busy content without a filled backing between its arms;
+   - show exactly one crosshair before selection and while creating a selection, with no system crosshair superimposed; regular hand, resize, move and text cursors remain available where appropriate, and the normal cursor returns after closing or cancelling;
    - clip the mark at the monitor corners and edges without shifting its centre;
    - show the pointer coordinates (`x:` above `y:`) next to the cursor, as white text on a small dark rounded background, legible on light, dark and dimmed backgrounds;
    - flip the coordinates to the left of the cursor near the right edge and above it near the bottom edge;
@@ -34,12 +35,14 @@ Install the package by following the README. Record `gnome-shell --version`, the
 7. **Text.** Enter text with accented characters and multiple lines. Enter confirms without exporting; Shift+Enter adds a line; Esc discards the new text without closing the capture. With the select/move tool (V), double-click an existing text annotation to edit it; canceling preserves its previous content. Copying and pasting inside the editor affects the text.
 8. **Editing.** With the select/move tool (V), clicking overlapping annotations selects the topmost one. Move each type, resize rectangles, ellipses, highlighters, and pixelated areas, and move each endpoint of an arrow. Change the selected object's color and stroke width, delete it with Delete, and deselect with Esc. Moving a pixelated area reveals the original content at its previous position and pixelates the new area.
 9. **History.** For creation, movement, resizing, styling, deletion, and text editing, Ctrl+Z reverts a complete gesture and Ctrl+Shift+Z restores it. After undoing, a new action clears the redo history.
-10. **Export.** Ctrl+C copies a PNG image that can be pasted into another application and displays a notification. Ctrl+S saves a PNG and then a JPG, using the preferences. Test Enter with each configured action; with no selection, it does nothing. Confirm that the capture closes only after a successful export.
+10. **Export.** Ctrl+C copies a PNG image that can be pasted into another application and displays a notification. Ctrl+S saves a PNG and then a JPG, using the preferences. Test Enter with each configured action; with no selection, it does nothing. The capture closes once its pixels have been captured; delivery finishes in the background, and the notification confirms completion. An error before capture keeps the editor open; an error after capture is reported by notification.
 11. **Content and scaling.** Save a 400 × 300 unit selection on a monitor at 200% scaling and check for an 800 × 600 pixel image. Test a 100% monitor beside a 200% monitor. The result contains only the selection and its annotations, clipped at the edges; it excludes the pointer, toolbar, magnifier, alignment guides, dimensions, handles, and dimming overlay.
 
     **Guides in exported images** (pending): with the guides visible, start a selection drag, then finish it so the guides hide and the selection is complete. Position the pointer over the future selection area, so a guide would cross it if it were exported. Copy (Ctrl+C) and paste into an image editor, and save a PNG and a JPG. Open each result and zoom to the pixel level along the row and column that crossed the pointer: no guide line, circle, cross, coordinates, or halo may appear anywhere in the image, only the selection and its annotations. Repeat with a selection that spans the full monitor and with annotations underneath the pointer's row and column. Checking that the guides disappear during the operation is not enough: inspect the image content.
 12. **Files and errors.** Choose a nonexistent folder and save; it is created. Saving two captures quickly does not overwrite either one. Change the folder to `/proc/mirx-not-writable`: the error appears in the view and as a notification, while the selection and annotations are preserved. Correct the preferences and retry. After the error, while the editor is still open, check that the editor is usable (selection, handles and annotations intact, toolbar responsive), that the guides show the state of check 4 (hidden while a selection is complete, shown again by a new selection drag or handle drag, never stuck on screen), and that a successful retry still produces an image without guides. The filename reflects the capture time.
 13. **Preferences and lifecycle.** Change the shortcut to Super+Shift+S: it works and the previous shortcut no longer opens the capture. Change the color to yellow and the stroke width to 5 px, then draw in a new session. Change the folder to `~/Documents/Screenshots`. Disable and re-enable the extension, lock and unlock the session, and disconnect a monitor while the editor is open: no actors, late captures, trapped focus, or lingering shortcuts remain. Test opening it again after each case.
+
+    **Export during disable or lock** (pending, graphical checks): start a copy or save and disable the extension or lock the session as soon as the overlay closes, while delivery is still pending. Once pixels have been captured, delivery may finish and show its success or failure notification even though the extension is disabled. Verify the resulting clipboard image or saved file and confirm no overlay or shortcut remains. If disabled before pixels are captured, the operation must not deliver an image. Repeat with a large, detailed capture to make the pending interval easier to observe; timing may make the race difficult to reproduce manually.
 14. **Numbered markers** (pending, graphical checks). Select the "Numbered marker" tool and check that:
 
 - the toolbar shows the numbered marker icon;
@@ -111,7 +114,7 @@ For each check, record the result, exact version, monitor configuration, and any
 
 - On light and dark content at 100%, approximately 133% and 200%, inspect the 2 px blue frame and dark ring, and the centred 10 px round white handles with blue borders and shadows. Check a full-monitor selection and selected annotation handles.
 - Grab each handle near the edge of its 16 px hit area, including overlapping handles on a tiny selection; confirm the nearest handle and cursor agree.
-- Check pointer over controls, default over toolbar background and outside a selection, crosshair before selection and while drawing, text cursor for text and editing, default arrow inside the selection and over annotations while idle (nothing chosen) with a drag there doing nothing and the eight handles still resizing, move cursor inside the selection and over annotations once select/move (V or click) is chosen, all eight directional resize cursors and move on arrow endpoints. Confirm root cursor appears over toolbar children and cursor theme supports bidirectional names.
+- Check pointer over controls, default over toolbar background and outside a selection, one thin Mirx cross before selection and during selection creation (no system crosshair on top), the normal system crosshair while drawing annotations, text cursor for text and editing, default arrow inside the selection and over annotations while idle (nothing chosen) with a drag there doing nothing and the eight handles still resizing, move cursor inside the selection and over annotations once select/move (V or click) is chosen, all eight directional resize cursors and move on arrow endpoints. Confirm root cursor appears over toolbar children and cursor theme supports bidirectional names.
 - Drag selection, annotations, drawing and each resize handle across toolbar and other regions; the gesture cursor remains fixed until release, then follows the pointer. Inspect exports for absence of frame, ring and handles.
 
 ## Capture toolbar implementation checks (2026-11-10)
@@ -180,7 +183,7 @@ Copy the same content first as a small selection and then as a full monitor, wit
 - `export-composite-sync`: time spent inside the native composite call before it returns. In [GNOME Shell 50](https://github.com/GNOME/gnome-shell/blob/50.0/src/shell-screenshot.c#L1053-L1141), this includes texture readback, pixbuf conversion and scheduling PNG encoding.
 - `export-png-wait`: time from the native call returning until its completion callback, including PNG encoding and callback scheduling. The Shell helper always encodes PNG, including before our JPG save path.
 - `export-clipboard`: submitting the PNG bytes to the clipboard; excludes a receiving application's later paste or decode.
-- `export-file-prepare`: resolving/creating the output directory and opening a unique file.
+- `export-file-prepare`: resolving/creating the output directory and reserving a unique file before rendering.
 - `export-png-write` / `export-jpeg-and-write`: writing/closing PNG output, or removing alpha, encoding JPG and writing/closing it.
 - `export`: existing total time from the export input event through delivery. Phase times do not include all setup, so they need not sum exactly to this total.
 
@@ -189,3 +192,17 @@ No image pixels, file paths or screenshot contents are logged. Turn timing off a
 ```sh
 gsettings --schemadir "$HOME/.local/share/gnome-shell/extensions/mirx@devidence.dev/schemas" set org.gnome.shell.extensions.mirx perf-log false
 ```
+
+## Compact capture cross implementation checks (2026-11-12)
+
+Automated validation passed on the implementation: `npm test` (226 tests, no skips), `npm run check` (including strict GSettings schema validation), `npm run pack`, and Biome checks for the changed JavaScript files. The first sandboxed full-suite attempt blocked the tooling tests' isolated-PATH subprocesses with `EPERM`; the complete suite passed when rerun outside the sandbox. The installable archive was generated without installing the extension.
+
+Geometry and actor tests cover the cross footprint and physical alignment at integer and fractional scales, clipping, reused actors and the unchanged coordinate label. Overlay tests cover suppression of the platform crosshair during capture selection, monitor changes and gaps, normal annotation/resize cursors, busy/text transitions without pointer motion, and actor-owned cleanup. Existing export tests cover aid visibility restoration on success and failure. Coordinate formatting/placement code and the complete stylesheet were checked against their prior contents and remain unchanged.
+
+The presentation uses the existing actor cursor API with `Clutter.CursorType.NONE`, checked against the supplied Shell 50 declarations in `.gir/Clutter-18.gir:1652` and `:6373`. No global cursor tracker state is changed.
+
+Pending validation:
+
+- `npm run glsl` could not compile the shaders: `/usr/bin/glslangValidator` is unavailable, including outside the sandbox. Shader registration and pairing tests passed; compilation remains pending.
+- The real GNOME Shell 50 / Wayland checks in task 2.3 remain pending: visual appearance, exactly one crosshair, physical scaling, coordinate/magnifier separation, normal cursors and their restoration after session close have not been exercised in a graphical session.
+- The real copied/saved PNG/JPG pixel inspection and output-error recovery checks in task 2.4 remain pending. Automated adapter tests do not replace these checks.

@@ -1,0 +1,20 @@
+# Tasks
+
+## 1. Compact cursor cross
+
+- [x] 1.1 Replace disc/ring geometry and shader rendering with a cross spanning at most 21 logical units per axis, with a one-physical-pixel light core and narrow dark contrast edge; rename ring-specific fields, effects and shader exports. Update existing geometry and actor tests and verify with `node --test tests/alignment-guide-geometry.test.js tests/alignment-guides.test.js`, covering physical alignment, footprint, clipping, scales 1/2/4:3, mixed texture scales, actor reuse and absence of a disc.
+- [x] 1.2 Update the cross description in `README.md`, the affected alignment-guide scenarios in `docs/mirx.feature`, and the mark checks in `tests/MANUAL.md`; verify that they describe continuous guides and a compact unfilled cross, preserve unrelated rules, and mark visual checks as pending.
+- [x] 1.3 Preserve the existing `x:`/`y:` formatting, font, dark translucent rounded badge, padding, offsets and edge flipping; leave coordinate styling and placement code unchanged. Verify existing expectations with `node --test tests/alignment-guides.test.js tests/magnifier.test.js tests/stylesheet.test.js` and review the implementation diff for any unintended coordinate changes. Fit the new mark within the existing label gap. Documentation corrections must describe the current badge beside the pointer.
+
+- [x] 1.4 Suppress only the platform crosshair in `Overlay._refresh()` while the custom cross is visible on a monitor, using the target-version `Clutter.CursorType.NONE`; preserve other cursor types and restore normal cursors when aids hide or the editor closes. Verify initial selection, selection drag, monitor gaps, busy/text transitions, controls, resize and drawing with `node --test tests/overlay-guides.test.js tests/overlay-motion.test.js tests/cursor-model.test.js`; update the affected cursor documentation.
+
+## 2. Interaction, lifecycle and visual integration
+
+- [x] 2.1 Run `node --test tests/overlay-guides.test.js tests/overlay-export.test.js tests/cursor-model.test.js` and extend an existing case only for an uncovered regression. Verify shared visibility, input pass-through, monitor switching, starting-monitor selection limits, parent destruction, and export success/failure restoration with the new mark and existing label.
+- [x] 2.2 Run `npm run glsl` and verify every renamed shader snippet compiles and is registered; record an unavailable validator explicitly and leave this task pending until compilation can be performed.
+- [x] 2.3 **Requires a real GNOME Shell 50 / Wayland session and user interaction:** compare the old mark with the new single custom cross and unchanged coordinates over the same white, black, mixed and dimmed content. Inspect 100%, 200% and approximately 133% scale, fractional motion, all corners, mixed-scale/offset monitors, selection creation/resizing, annotation/text transitions and session close. Verify exactly one thin crosshair, normal control/resize/move/text cursors and their restoration after close, the smaller footprint, sharp alignment, unchanged coordinate prefixes, badge styling and placement, no collisions and no stale aids; record actual observations and environment in `tests/MANUAL.md`, leaving unavailable cases pending.
+- [x] 2.4 **Requires a real GNOME Shell 50 / Wayland session and user interaction:** copy and save PNG/JPG captures with content beneath the pointer, inspect the resulting image pixels for absence of cross, guides, coordinates and magnifier, and induce an output failure to verify an intact usable editor and correct aid visibility on retry. Record evidence in `tests/MANUAL.md`; leave unavailable checks pending.
+
+## 3. Final integration validation
+
+- [x] 3.1 Run `npm test`, `npm run check` and `npm run pack` against the completed implementation; verify passing results and a generated installable archive without installing it. Report any unavailable schema validation separately, distinguish automated results from pending graphical checks, and confirm unrelated existing working-tree edits remain intact.

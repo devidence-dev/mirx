@@ -42,6 +42,11 @@ export default class MirxExtension extends Extension {
             writePreferences: (patch) =>
                 writeAppearance(this._settings, (type, value) => new GLib.Variant(type, value), patch),
             notifyError: (title, body) => Main.notifyError(title, body),
+            time: (phase) => {
+                if (!this._settings?.get_boolean('perf-log')) return () => {};
+                const start = GLib.get_monotonic_time();
+                return () => console.log(`mirx-perf ${phase} ms=${(GLib.get_monotonic_time() - start) / 1000}`);
+            },
         });
         this._panelController = new PanelIndicatorController({
             isVisible: () => this._settings.get_boolean('show-panel-icon'),

@@ -6,11 +6,12 @@ Let users give arrows, rectangles, ellipses and numbered markers a vivid sweep o
 
 ## Requirements
 
-### Requirement: One gradient toggle in the toolbar
+### Requirement: One persistent gradient toggle in the toolbar
 
-The toolbar SHALL offer a single on/off gradient toggle that shows its state. It SHALL be off at the start of every capture session. The system SHALL NOT offer a second colour picker, gradient presets, angles or colour stops.
+The toolbar SHALL offer a single on/off gradient toggle that shows its state. It SHALL be off when no gradient preference has been saved and SHALL otherwise restore the last explicitly chosen state at the start of each capture session. The toggle SHALL remain shared across tools. The system SHALL NOT offer a second colour picker, gradient presets, angles or colour stops.
 
 #### Scenario: Default state
+- **GIVEN** no gradient preference has been saved
 - **WHEN** the user opens the capture editor and a selection exists
 - **THEN** the gradient toggle is shown as off
 
@@ -19,10 +20,16 @@ The toolbar SHALL offer a single on/off gradient toggle that shows its state. It
 - **WHEN** the user switches the toggle on and then off
 - **THEN** the toggle shows on, then off
 - **AND** no undo entry is created by either change
+- **AND** each explicit choice updates the remembered state
 
-#### Scenario: State is not kept between sessions
+#### Scenario: State is kept between sessions
 - **GIVEN** the user switched the toggle on and closed the editor
 - **WHEN** the user opens the editor again
+- **THEN** the toggle is on
+
+#### Scenario: Disabled state is also remembered
+- **GIVEN** the user previously enabled gradient
+- **WHEN** the user switches it off, closes the editor and opens another capture
 - **THEN** the toggle is off
 
 ### Requirement: Gradient sweeps the chosen colour into a neighbouring hue

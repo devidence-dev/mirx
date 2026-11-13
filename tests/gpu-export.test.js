@@ -181,10 +181,10 @@ test('file export profiling identifies PNG write versus JPEG encoding and write'
         );
         const phases = events.filter((event) => event[0] === 'perf').map((event) => event[1].split(' ')[1]);
         assert.deepEqual(phases, [
+            'export-file-prepare',
             'export-paint',
             'export-composite-sync',
             'export-png-wait',
-            'export-file-prepare',
             format === 'PNG' ? 'export-png-write' : 'export-jpeg-and-write',
         ]);
     }
@@ -244,6 +244,68 @@ test('save errors propagate and remove the partial file', async () => {
     );
     assert.equal(events.includes('complete'), false);
     assert.ok(events.includes('delete'));
+});
+
+test('save reserves the file before capture and preserves the editor on creation failure', async () => {
+    const { Output, context, events } = await load();
+    const denied = new Error('permission denied');
+    denied.matches = () => false;
+    context.Gio.File.new_for_path = () => ({
+        make_directory_with_parents() {},
+        get_child: () => ({
+            create: () => {
+                throw denied;
+            },
+        }),
+    });
+    let captured = false;
+    await assert.rejects(
+        new Output().save(
+            snapshot,
+            selection,
+            [],
+            monitor,
+            { folder: '/readonly' },
+            {
+                ...operation,
+                onCaptured: () => (captured = true),
+            },
+        ),
+        /permission denied/,
+    );
+    assert.equal(captured, false);
+    assert.equal(
+        events.some((event) => Array.isArray(event) && event[0] === 'texture'),
+        false,
+    );
+});
+
+test('save removes its reserved file when rendering fails or is cancelled', async () => {
+    for (const cancelled of [false, true]) {
+        const { Output, context, events } = await load();
+        if (!cancelled)
+            context.global.stage.paint_to_content = () => {
+                throw new Error('paint failed');
+            };
+        const saving = new Output().save(
+            snapshot,
+            selection,
+            [],
+            monitor,
+            { folder: '/screenshots' },
+            {
+                ...operation,
+                isCancelled: () => cancelled,
+            },
+        );
+        if (cancelled) await saving;
+        else await assert.rejects(saving, /paint failed/);
+        assert.ok(events.includes('file-close'));
+        assert.ok(events.includes('delete'));
+        assert.ok(
+            events.findIndex((event) => Array.isArray(event) && event[0] === 'create') < events.indexOf('delete'),
+        );
+    }
 });
 
 test('cancellation avoids clipboard writes and stage failure restores visibility', async () => {

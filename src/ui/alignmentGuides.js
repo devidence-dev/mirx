@@ -6,7 +6,7 @@ import St from 'gi://St';
 
 import { alignmentGuideGeometry } from '../rendering/alignmentGuideGeometry.js';
 import { setUniforms, textureUniforms } from './annotationActors.js';
-import { GUIDE_CODE, GUIDE_DECLARATIONS, RING_CODE, RING_DECLARATIONS } from './shaders.js';
+import { CROSS_CODE, CROSS_DECLARATIONS, GUIDE_CODE, GUIDE_DECLARATIONS } from './shaders.js';
 
 const GuideEffect = GObject.registerClass(
     class MirxGuideEffect extends Shell.GLSLEffect {
@@ -30,31 +30,29 @@ const GuideEffect = GObject.registerClass(
     },
 );
 
-const RingEffect = GObject.registerClass(
-    class MirxRingEffect extends Shell.GLSLEffect {
+const CrossEffect = GObject.registerClass(
+    class MirxCrossEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
-            this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, RING_DECLARATIONS, RING_CODE, true);
+            this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, CROSS_DECLARATIONS, CROSS_CODE, true);
         }
 
         vfunc_paint_target(node, paintContext) {
             const { textureSize, contentOffset } = textureUniforms(this);
-            const { scale, half, radius, inner, outer } = this.ring;
+            const { scale, half, outer } = this.cross;
             setUniforms(this, {
                 textureSize,
                 contentOffset,
                 // Texture pixels per monitor physical pixel; the resource scale is rounded up.
-                ringPixel: [this.get_actor().get_resource_scale() / scale],
-                ringHalf: [half],
-                ringRadius: [radius],
-                ringInner: [inner],
-                ringOuter: [outer],
+                crossPixel: [this.get_actor().get_resource_scale() / scale],
+                crossHalf: [half],
+                crossOuter: [outer],
             });
             super.vfunc_paint_target(node, paintContext);
         }
     },
 );
 
-/** Solid cursor guides, a centre mark and coordinates: GPU strips, one ring and a label in one inert, clipped container. Presentation only. */
+/** Solid cursor guides, a centre mark and coordinates: GPU strips, one cross and a label in one inert, clipped container. Presentation only. */
 export class AlignmentGuides {
     constructor(snapshot) {
         this._scale = snapshot.scale;
@@ -74,11 +72,11 @@ export class AlignmentGuides {
             return { name, actor, effect, key: null };
         });
         // Last child: drawn above both strips.
-        const ringActor = new Clutter.Actor({ reactive: false, background_color: white });
-        const ringEffect = new RingEffect();
-        ringActor.add_effect(ringEffect);
-        this.actor.add_child(ringActor);
-        this._ring = { actor: ringActor, effect: ringEffect };
+        const crossActor = new Clutter.Actor({ reactive: false, background_color: white });
+        const crossEffect = new CrossEffect();
+        crossActor.add_effect(crossEffect);
+        this.actor.add_child(crossActor);
+        this._cross = { actor: crossActor, effect: crossEffect };
         // Last child: coordinates beside the cursor, drawn above the mark.
         this._label = new St.Label({ style_class: 'mirx-cursor-coordinates', reactive: false });
         this.actor.add_child(this._label);
@@ -103,11 +101,11 @@ export class AlignmentGuides {
                 strip.effect.guide = { vertical: strip.name === 'vertical', scale: geometry.scale, core };
                 strip.actor.queue_redraw();
             }
-            const { ring } = geometry;
-            this._ring.actor.set_position(ring.x, ring.y);
-            this._ring.actor.set_size(ring.size, ring.size);
-            this._ring.effect.ring = { ...ring, scale: geometry.scale };
-            this._ring.actor.queue_redraw();
+            const { cross } = geometry;
+            this._cross.actor.set_position(cross.x, cross.y);
+            this._cross.actor.set_size(cross.size, cross.size);
+            this._cross.effect.cross = { ...cross, scale: geometry.scale };
+            this._cross.actor.queue_redraw();
             this._label.text = `x: ${Math.floor(point.x)}\ny: ${Math.floor(point.y)}`;
             const width = this._label.get_preferred_width(-1)[1],
                 height = this._label.get_preferred_height(-1)[1];

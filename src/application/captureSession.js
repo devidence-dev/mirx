@@ -1,7 +1,25 @@
 /** Coordinates one editor session through injected capture, view and output ports. */
 export class CaptureSession {
-    constructor({ capture, createEditor, createView, output, settings, writePreferences = () => {}, notifyError }) {
-        Object.assign(this, { capture, createEditor, createView, output, settings, writePreferences, notifyError });
+    constructor({
+        capture,
+        createEditor,
+        createView,
+        output,
+        settings,
+        writePreferences = () => {},
+        notifyError,
+        time = () => () => {},
+    }) {
+        Object.assign(this, {
+            capture,
+            createEditor,
+            createView,
+            output,
+            settings,
+            writePreferences,
+            notifyError,
+            time,
+        });
         this._generation = 0;
         this._active = false;
         this._exporting = false;
@@ -15,9 +33,13 @@ export class CaptureSession {
         this._active = true;
         const generation = ++this._generation;
         let preferenceFailureReported = false;
+        const opened = this.time('open');
         try {
+            const captured = this.time('open-capture');
             const snapshot = await this.capture.capture();
+            captured();
             if (generation !== this._generation) return;
+            const built = this.time('open-view');
             const config = this.settings();
             const editor = this.createEditor({
                 monitors: snapshot.monitors,
@@ -46,6 +68,8 @@ export class CaptureSession {
                 enterAction: () => this.settings().enterAction,
             });
             this._view.open();
+            built();
+            opened();
         } catch (error) {
             if (generation === this._generation) {
                 this.close();
@@ -69,10 +93,13 @@ export class CaptureSession {
                 if (generation !== this._generation) return;
                 captured = true;
                 this.close();
+                closing();
             },
             isCancelled: () => (!captured && generation !== this._generation) || (copy > 0 && copy !== this._copies),
             withExportContent: (callback) => view.withExportContent(callback),
         };
+        const total = this.time('session-export');
+        const closing = this.time('export-to-close');
         this._exporting = true;
         this._view?.setBusy(true);
         try {
@@ -88,9 +115,10 @@ export class CaptureSession {
             else if (action === 'copy')
                 await this.output.copy(snapshot, editor.selection, editor.annotations, editor.monitor, operation);
             else throw new Error(`Unknown action: ${action}`);
+            total();
             if (generation === this._generation) this.close();
         } catch (error) {
-            if (captured) this.notifyError('Could not export the capture', error.message);
+            if (captured && !operation.isCancelled()) this.notifyError('Could not export the capture', error.message);
             else if (generation === this._generation) {
                 this._view?.showError?.(error.message);
                 this.notifyError('Could not export the capture', error.message);
@@ -105,7 +133,9 @@ export class CaptureSession {
 
     close() {
         ++this._generation;
+        const destroyed = this._view ? this.time('close-view') : null;
         this._view?.destroy();
+        destroyed?.();
         this._view = null;
         this._active = false;
         this._exporting = false;
