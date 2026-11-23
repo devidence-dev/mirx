@@ -4,6 +4,7 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import { snapToGrid } from '../core/geometry.js';
 import { alignmentGuideGeometry } from '../rendering/alignmentGuideGeometry.js';
 import { setUniforms, textureUniforms } from './annotationActors.js';
 import { CROSS_CODE, CROSS_DECLARATIONS, GUIDE_CODE, GUIDE_DECLARATIONS } from './shaders.js';
@@ -111,10 +112,9 @@ export class AlignmentGuides {
                 height = this._label.get_preferred_height(-1)[1];
             const px = point.x - monitor.x,
                 py = point.y - monitor.y;
-            const snap = (value) => Math.round(value * geometry.scale) / geometry.scale;
             this._label.set_position(
-                snap(px + 14 + width > monitor.width ? px - 14 - width : px + 14),
-                snap(py + 12 + height > monitor.height ? py - 12 - height : py + 12),
+                snapToGrid(px + 14 + width > monitor.width ? px - 14 - width : px + 14, geometry.scale),
+                snapToGrid(py + 12 + height > monitor.height ? py - 12 - height : py + 12, geometry.scale),
             );
         }
         this.actor.show();

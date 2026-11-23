@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { cursorFor } from '../src/ui/cursorModel.js';
-import { contains, physicalRect } from '../src/core/geometry.js';
+import { contains, physicalRect, snapToGrid } from '../src/core/geometry.js';
 
 const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
     .replace(/^import [^;]*;\n/gm, '')
@@ -22,6 +22,7 @@ function fixture() {
             },
         },
         console: { log: (line) => calls.push(line) },
+        snapToGrid,
     });
     const view = Object.create(Overlay.prototype);
     Object.assign(view, {
@@ -107,6 +108,7 @@ function cursorFixture() {
         cursorFor,
         contains,
         physicalRect,
+        snapToGrid,
         global: { stage: { get_actor_at_pos: () => picked, get_event_actor: () => picked } },
     });
     const view = Object.create(Overlay.prototype);

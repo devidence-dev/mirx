@@ -13,6 +13,7 @@ import {
     physicalRect,
     alignedPaintRect,
     markerRadius,
+    snapToGrid,
 } from '../src/core/geometry.js';
 import { Editor, annotationHit, annotationRect, markerNumbers, supportsGradient } from '../src/core/editor.js';
 
@@ -312,6 +313,12 @@ test('a press strictly inside the selection near a corner draws, while a press j
     assert.deepEqual(e.selection, { x: 90, y: 90, width: 210, height: 160 });
 });
 
+test('snapToGrid snaps to the nearest physical pixel in logical units', () => {
+    assert.equal(snapToGrid(31, 4 / 3), 30.75);
+    assert.ok(Math.abs(snapToGrid(11, 1.5) - 34 / 3) < 1e-9);
+    assert.equal(snapToGrid(7, 1), 7);
+});
+
 test('physicalRect rounds both edges so the size matches the pixel grid', () => {
     const s = 1.3333333730697632;
     // x 10*s = 13.33 -> 13, y 7*s = 9.33 -> 9; right 610*s = 813.33 -> 813, bottom 407*s = 542.67 -> 543.
@@ -363,8 +370,31 @@ test('alignedPaintRect covers the physical rect with a grid-aligned logical orig
         offsetX: 3,
         offsetY: 4,
     });
-    // 1.37 has no q in 1..16 with q*scale within 1e-4 of an integer.
-    assert.equal(alignedPaintRect({ x: 14, y: 10, width: 822, height: 548 }, 1.37), null);
+    // 1.37 = 137/100: no q in 1..16, so the per-edge fallback finds l = 0 and l = 100 (both on the grid).
+    assert.deepEqual(alignedPaintRect({ x: 14, y: 10, width: 822, height: 548 }, 1.37), {
+        rect: { x: 0, y: 0, width: 700, height: 500 },
+        offsetX: 14,
+        offsetY: 10,
+    });
+    // An irrational scale has no grid point within the search limit.
+    const sqrt2 = physicalRect({ x: 10, y: 7, width: 300, height: 200 }, Math.SQRT2);
+    assert.equal(alignedPaintRect(sqrt2, Math.SQRT2), null);
+});
+
+test('alignedPaintRect handles scales whose grid period exceeds 16 (1.15 = 23/20)', () => {
+    const s = 1.15;
+    const physical = physicalRect({ x: 10, y: 7, width: 300, height: 200 }, s);
+    const aligned = alignedPaintRect(physical, s);
+    assert.notEqual(aligned, null);
+    const { rect, offsetX, offsetY } = aligned;
+    const onGrid = (v) => Math.abs(v * s - Math.round(v * s)) < 1e-4;
+    assert.ok(onGrid(rect.x) && onGrid(rect.x + rect.width));
+    assert.ok(onGrid(rect.y) && onGrid(rect.y + rect.height));
+    assert.ok(offsetX >= 0 && offsetY >= 0);
+    assert.ok(offsetX + physical.width <= Math.round(rect.width * s));
+    assert.ok(offsetY + physical.height <= Math.round(rect.height * s));
+    assert.equal(Math.round(rect.x * s) + offsetX, physical.x);
+    assert.equal(Math.round(rect.y * s) + offsetY, physical.y);
 });
 
 const place = (e, point) => {

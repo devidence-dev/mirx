@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { Editor } from '../src/core/editor.js';
-import { contains, handles, physicalRect } from '../src/core/geometry.js';
+import { contains, handles, physicalRect, snapToGrid } from '../src/core/geometry.js';
 import { decorationRect } from '../src/ui/decorations.js';
 import { cursorFor } from '../src/ui/cursorModel.js';
 
@@ -62,6 +62,25 @@ class Aid {
         this.calls.push({ point, monitor, visible });
     }
 }
+class Text {
+    constructor(properties = {}) {
+        Object.assign(this, properties);
+    }
+    set_font_description() {}
+    set_color(color) {
+        this.color = color;
+    }
+    set_cursor_position(position) {
+        this.cursor = position;
+    }
+    grab_key_focus() {}
+}
+class Bin extends Actor {
+    get_theme_node() {
+        return { get_border_width: () => 1, get_padding: () => 4, get_foreground_color: () => 'white' };
+    }
+    set_clip() {}
+}
 class Stub {
     constructor() {
         this.actor = new Actor();
@@ -89,6 +108,7 @@ function fixture() {
     const Overlay = vm.runInNewContext(source, {
         Clutter: {
             Actor,
+            Text,
             EVENT_STOP: 'stop',
             EVENT_PROPAGATE: 'propagate',
             BUTTON_PRIMARY: 1,
@@ -99,7 +119,7 @@ function fixture() {
         },
         GLib: {},
         Shell: {},
-        St: { Widget: Actor, Label: Actor },
+        St: { Widget: Actor, Label: Actor, Bin, Side: { LEFT: 0, TOP: 1 } },
         global: {
             get_pointer: () => [10, 20],
             stage: { width: 2080, height: 820, get_event_actor: () => null, get_actor_at_pos: () => null },
@@ -107,6 +127,7 @@ function fixture() {
         contains,
         handles,
         physicalRect,
+        snapToGrid,
         decorationRect,
         cursorFor,
         textFont: () => 'Sans',
@@ -368,4 +389,31 @@ test('selection frame keeps its bounds and 10 px handles stay centred', () => {
         assert.equal(handle.height, 10);
         assert.deepEqual(handle.position, [point.x - 5, point.y - 5]);
     });
+});
+
+test('selection frame snaps to the physical pixel grid at fractional scale', () => {
+    const { overlay, editor } = fixture();
+    editor.monitor = { x: 0, y: 0, width: 800, height: 600, scale: 1.5 };
+    editor.selection = { x: 11, y: 21, width: 101, height: 51 };
+    overlay._refresh();
+    const p = physicalRect(editor.selection, 1.5);
+    assert.deepEqual(overlay._frame.position, [p.x / 1.5, p.y / 1.5]);
+    assert.deepEqual(overlay._frame.size, [p.width / 1.5, p.height / 1.5]);
+    assert.deepEqual(overlay._frameRing.position, [p.x / 1.5 - 1, p.y / 1.5 - 1]);
+});
+
+test('inline text editor snaps its container to the physical grid while the model keeps the raw point', () => {
+    const { overlay, editor } = fixture();
+    editor.monitor = monitors[1]; // scale 4/3
+    editor.selection = { x: 0, y: 0, width: 200, height: 200 };
+    overlay._startText({ x: 31, y: 41 });
+    const { actor, point, id } = overlay._textEdit;
+    const insetX = 1 + 4; // border + padding from the mocked theme node
+    const insetY = 1 + 4;
+    assert.equal(id, null);
+    // snapToGrid(31, 4/3) = 30.75 and snapToGrid(41, 4/3) = 41.25
+    const expected = [snapToGrid(31, 4 / 3) - insetX, snapToGrid(41, 4 / 3) - insetY];
+    assert.ok(Math.abs(actor.position[0] - expected[0]) < 1e-9);
+    assert.ok(Math.abs(actor.position[1] - expected[1]) < 1e-9);
+    assert.deepEqual(point, { x: 31, y: 41 }); // the model is not snapped
 });

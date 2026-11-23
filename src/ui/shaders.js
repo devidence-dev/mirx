@@ -69,6 +69,34 @@ if (fill > 0.5) {
 cogl_color_out = vec4(gradientColor(p + extent * 0.5, ringColor), 1.0) * (alpha * cogl_color_in.a);
 `;
 
+export const ARROW_DECLARATIONS = `
+${GRADIENT_DECLARATIONS}
+uniform vec2 textureSize;
+uniform vec2 contentOffset;
+uniform vec2 tail;
+uniform vec2 tip;
+uniform vec2 wingA;
+uniform vec2 wingB;
+uniform float stroke;
+uniform float antialias;
+uniform vec3 arrowColor;
+
+float segmentDistance(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.000001), 0.0, 1.0);
+    return length(p - a - ab * t);
+}`;
+
+export const ARROW_CODE = `
+vec2 p = cogl_tex_coord_in[0].xy * textureSize - contentOffset;
+// Union of three round-capped strokes, so the joins at the tip never double up.
+float d = min(segmentDistance(p, tail, tip), min(segmentDistance(p, tip, wingA), segmentDistance(p, tip, wingB)));
+// One physical pixel of coverage across the stroke edge: rotated St widgets have no edge antialiasing.
+float alpha = 1.0 - smoothstep(stroke * 0.5 - antialias * 0.5, stroke * 0.5 + antialias * 0.5, d);
+// Cogl blends premultiplied colour, so the RGB must be scaled by the alpha too.
+cogl_color_out = vec4(gradientColor(p, arrowColor), 1.0) * (alpha * cogl_color_in.a);
+`;
+
 export const GRADIENT_RECOLOR_DECLARATIONS = `
 uniform vec2 textureSize;
 uniform vec2 contentOffset;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { snapToGrid } from '../src/core/geometry.js';
 import { toolForKey, TOOLS } from '../src/ui/toolbarModel.js';
 
 const source = `${readFileSync(new URL('../src/ui/overlay.js', import.meta.url), 'utf8')
@@ -37,6 +38,7 @@ function fixture({ action = 'copy', timed = true, selection = true } = {}) {
     const Overlay = vm.runInNewContext(source, {
         Clutter,
         toolForKey,
+        snapToGrid,
         global: { focus_manager: { navigate_from_event: () => false } },
         GLib: {
             get_monotonic_time() {

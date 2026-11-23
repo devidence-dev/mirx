@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import {
-    arrowBars,
+    arrowUniforms,
     arrowBounds,
     contrastColor,
     effectTextureUniforms,
@@ -18,6 +18,7 @@ import {
 } from '../src/rendering/actorGeometry.js';
 import * as shaders from '../src/ui/shaders.js';
 import {
+    ARROW_CODE,
     ELLIPSE_CODE,
     ELLIPSE_DECLARATIONS,
     GRADIENT_DECLARATIONS,
@@ -25,7 +26,7 @@ import {
     GRADIENT_RECOLOR_DECLARATIONS,
 } from '../src/ui/shaders.js';
 import { Editor, markerNumbers } from '../src/core/editor.js';
-import { contains, markerRadius, physicalRect } from '../src/core/geometry.js';
+import { contains, markerRadius, physicalRect, snapToGrid } from '../src/core/geometry.js';
 import { cursorFor } from '../src/ui/cursorModel.js';
 
 class Actor {
@@ -185,7 +186,8 @@ const source =
     '\nthis.AnnotationActors = AnnotationActors;';
 const AnnotationActors = vm.runInNewContext(source, {
     AnnotationShadow: Shadow,
-    Clutter: { Actor, Text: Actor, RotateAxis: { Z_AXIS: 2 }, ScalingFilter: { NEAREST: 0 } },
+    snapToGrid,
+    Clutter: { Actor, Text: Actor, ScalingFilter: { NEAREST: 0 } },
     St: {
         Widget: Actor,
         DrawingArea: class {
@@ -199,7 +201,7 @@ const AnnotationActors = vm.runInNewContext(source, {
     GObject: { registerClass: (klass) => klass },
     ...shaders,
     textFont: (width, size) => ({ width, size }),
-    arrowBars,
+    arrowUniforms,
     arrowBounds,
     rectangleGeometry,
     effectTextureUniforms,
@@ -320,8 +322,8 @@ test('every annotation has its own silhouette shadow, reused through edits and r
     assert.ok(shadows.every((shadow) => shadow.updates.length === 1));
     const moved = annotations.map((annotation) => ({
         ...annotation,
-        x1: annotation.x1 + 10,
-        x2: annotation.x2 + 10,
+        x1: annotation.x1 + 12,
+        x2: annotation.x2 + 12,
         color: '#00ff00',
     }));
     renderer.update(moved, selection);
@@ -329,7 +331,7 @@ test('every annotation has its own silhouette shadow, reused through edits and r
         assert.equal(renderer._entries.get(index + 1).dropShadow, shadow);
         assert.equal(shadow.updates.length, 2);
         const [before, after] = shadow.updates;
-        assert.equal(after.rect.x, before.rect.x + 10);
+        assert.ok(Math.abs(after.rect.x - before.rect.x - 12) < 1e-9, `${after.rect.x} vs ${before.rect.x}`);
         assert.equal(after.rect.width, before.rect.width);
     }
     renderer.prepareExport();
@@ -724,6 +726,17 @@ test('markers: label is centred on its preferred size and snapped to the physica
     assert.ok(Math.abs(y - 34.5) < 1e-9, `y ${y}`);
 });
 
+test('text: origin is snapped to the physical pixel grid', () => {
+    const renderer = create();
+    renderer.update([item(1, 'text')], selection);
+    assert.deepEqual(plain(renderer._entries.get(1).actor.position), [30, 40]);
+    const scaled = create({ scale: 4 / 3, content });
+    scaled.update([{ ...item(1, 'text'), x1: 31, y1: 41 }], selection);
+    const [x, y] = scaled._entries.get(1).actor.position;
+    assert.ok(Math.abs(x - Math.round((31 * 4) / 3) / (4 / 3)) < 1e-9, `x ${x}`);
+    assert.ok(Math.abs(y - Math.round((41 * 4) / 3) / (4 / 3)) < 1e-9, `y ${y}`);
+});
+
 test('markers: a soft shadow sits under the label, one physical pixel lower, and hides on black numbers', () => {
     const renderer = create();
     renderer.update([marker(1)], selection);
@@ -760,6 +773,7 @@ test('markers: export prepares the disc, which is the shader actor', () => {
 const gradientOf = (annotation, id = 1) => ({ ...item(id, annotation), gradient: true });
 // Replace snippet: the recolour samples the texture and takes the alpha St already painted.
 const recolourSnippet = [2048, GRADIENT_RECOLOR_DECLARATIONS, GRADIENT_RECOLOR_CODE, true];
+const arrowSnippet = [2048, shaders.ARROW_DECLARATIONS, ARROW_CODE, true];
 
 test('recolour shader samples its texture before writing cogl_color_out', () => {
     assert.ok(GRADIENT_RECOLOR_DECLARATIONS.includes('uniform sampler2D tex;'));
@@ -775,7 +789,7 @@ test('gradient rectangles and arrows get one recolour effect, and the harness ne
         const { actor, effect } = renderer._entries.get(id);
         assert.equal(actor.effect, effect);
         assert.equal(actor.effectAdds, 1);
-        assert.deepEqual(effect.snippet, recolourSnippet);
+        assert.deepEqual(effect.snippet, id === 1 ? recolourSnippet : arrowSnippet);
     }
 });
 
@@ -797,7 +811,22 @@ test('gradient recolour effect is reused while the gradient stays on', () => {
     assert.deepEqual(plain(effects[0].shades), plain(gradientShades('#00ff00')));
 });
 
-for (const type of ['rectangle', 'arrow'])
+test('arrow: the shader effect stays through gradient toggles, which only flip its gradient flag', () => {
+    const renderer = create();
+    const annotation = gradientOf('arrow');
+    renderer.update([annotation], selection);
+    const { actor, effect } = renderer._entries.get(1);
+    effect.vfunc_paint_target({}, {});
+    assert.deepEqual(effect.uniforms.gradient, [1]);
+    renderer.update([{ ...annotation, gradient: false }], selection);
+    effect.vfunc_paint_target({}, {});
+    assert.deepEqual(effect.uniforms.gradient, [0]);
+    assert.equal(actor.effect, effect);
+    assert.equal(actor.effectAdds, 1);
+    assert.equal(actor.effectRemoves, undefined);
+});
+
+for (const type of ['rectangle'])
     test(`${type}: turning the gradient off removes the effect and turning it on again adds a fresh one`, () => {
         const renderer = create();
         const annotation = gradientOf(type);
@@ -820,12 +849,11 @@ test('flat rectangles and arrows never get a recolour effect, and a flat ellipse
         ['rectangle', 'arrow', 'circle'].map((type, i) => item(i + 1, type)),
         selection,
     );
-    for (const id of [1, 2]) {
-        const { actor, effect } = renderer._entries.get(id);
-        assert.equal(actor.effect, undefined);
-        assert.equal(actor.effectAdds, undefined);
-        assert.equal(effect, null);
-    }
+    const { actor, effect } = renderer._entries.get(1);
+    assert.equal(actor.effect, undefined);
+    assert.equal(actor.effectAdds, undefined);
+    assert.equal(effect, null);
+    assert.equal(renderer._entries.get(2).actor.effect.snippet[2], ARROW_CODE);
     assert.equal(renderer._entries.get(3).actor.effect.snippet[2], ELLIPSE_CODE);
 });
 
@@ -842,7 +870,7 @@ test('highlighter, text and pixelate never get a recolour effect, even with the 
     }
 });
 
-test('arrow container takes the arrowBounds box, and each bar keeps its stage position in every direction', () => {
+test('arrow actor takes the arrowBounds box, and its shader gets the segments in every direction', () => {
     const renderer = create();
     const arrows = [
         [30, 40, 90, 80],
@@ -853,17 +881,15 @@ test('arrow container takes the arrowBounds box, and each bar keeps its stage po
     ].map(([x1, y1, x2, y2], i) => ({ ...item(i + 1, 'arrow'), x1, y1, x2, y2 }));
     renderer.update(arrows, selection);
     for (const arrow of arrows) {
-        const { actor, bars } = renderer._entries.get(arrow.id);
+        const { actor, effect } = renderer._entries.get(arrow.id);
         const bounds = arrowBounds(arrow);
         assert.deepEqual(plain(actor.position), [bounds.x, bounds.y]);
         assert.deepEqual(plain(actor.size), [bounds.width, bounds.height]);
-        arrowBars(arrow).forEach((bar, i) => {
-            const part = bars[i];
-            assertNear([actor.position[0] + part.position[0], actor.position[1] + part.position[1]], [bar.x, bar.y]);
-            assert.deepEqual(plain(part.size), [bar.width, bar.height]);
-            assert.deepEqual(plain(part.pivot), [bar.pivotX, bar.pivotY]);
-            assert.equal(part.rotation[1], bar.angle);
-        });
+        assert.equal(actor.children.length, 0);
+        effect.vfunc_paint_target({}, {});
+        for (const [name, value] of Object.entries(arrowUniforms(arrow, 1, 1)))
+            assertNear(effect.uniforms[name], value);
+        assert.deepEqual(plain(effect.uniforms.arrowColor), [1, 0, 0]);
     }
 });
 
@@ -908,7 +934,7 @@ test('gradient rectangle recolour writes the axis, shades and flag, not extent, 
     }
 });
 
-test('gradient arrow recolour uses the axis relative to the bounds origin at resource scales 1, 2 and 4/3', () => {
+test('gradient arrow shader uses the axis relative to the bounds origin at resource scales 1, 2 and 4/3', () => {
     const renderer = create();
     const arrow = gradientOf('arrow');
     renderer.update([arrow], selection);
@@ -918,13 +944,20 @@ test('gradient arrow recolour uses the axis relative to the bounds origin at res
         actor.resourceScale = scale;
         effect.vfunc_paint_target({}, {});
         assert.deepEqual(Object.keys(effect.uniforms).sort(), [
+            'antialias',
+            'arrowColor',
             'contentOffset',
             'gradEnd',
             'gradFrom',
             'gradStart',
             'gradTo',
             'gradient',
+            'stroke',
+            'tail',
             'textureSize',
+            'tip',
+            'wingA',
+            'wingB',
         ]);
         assertNear(effect.uniforms.gradStart, [(30 - bounds.x) * scale, (40 - bounds.y) * scale]);
         assertNear(effect.uniforms.gradEnd, [(90 - bounds.x) * scale, (80 - bounds.y) * scale]);

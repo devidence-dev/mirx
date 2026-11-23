@@ -79,6 +79,11 @@ export function markerRadius(width) {
     return Math.max(10, 4 * width);
 }
 
+// Nearest physical-pixel boundary, in logical units.
+export function snapToGrid(value, scale) {
+    return Math.round(value * scale) / scale;
+}
+
 // Integer physical-pixel rectangle of a logical selection. The single source of truth
 // for export size and position in every engine and for the dimensions label.
 export function physicalRect(selection, scale) {
@@ -92,17 +97,32 @@ export function physicalRect(selection, scale) {
     };
 }
 
+// Nearest integer logical coordinate from `from` in direction `step` (±1) that lands on the physical grid.
+function gridLogical(from, scale, step, limit = 240) {
+    for (let i = 0, l = from; i <= limit; i++, l += step)
+        if (Math.abs(l * scale - Math.round(l * scale)) < 1e-4) return l;
+    return null;
+}
+
 // Integer logical rectangle covering `physical` whose origin lies exactly on the physical grid,
 // so the stage can be painted 1:1 without resampling. offsetX/offsetY locate `physical` inside
-// the painted texture. Null when the scale has no small grid-aligned logical period.
+// the painted texture. Null when the scale has no small grid-aligned logical period (q > 16 uses a per-edge search).
 export function alignedPaintRect(physical, scale) {
     let q = 1;
     while (q <= 16 && Math.abs(q * scale - Math.round(q * scale)) >= 1e-4) q++;
-    if (q > 16) return null;
-    const lx0 = Math.floor(physical.x / scale / q) * q;
-    const ly0 = Math.floor(physical.y / scale / q) * q;
-    const lx1 = Math.ceil((physical.x + physical.width) / scale / q) * q;
-    const ly1 = Math.ceil((physical.y + physical.height) / scale / q) * q;
+    let lx0, ly0, lx1, ly1;
+    if (q <= 16) {
+        lx0 = Math.floor(physical.x / scale / q) * q;
+        ly0 = Math.floor(physical.y / scale / q) * q;
+        lx1 = Math.ceil((physical.x + physical.width) / scale / q) * q;
+        ly1 = Math.ceil((physical.y + physical.height) / scale / q) * q;
+    } else {
+        lx0 = gridLogical(Math.floor(physical.x / scale), scale, -1);
+        ly0 = gridLogical(Math.floor(physical.y / scale), scale, -1);
+        lx1 = gridLogical(Math.ceil((physical.x + physical.width) / scale), scale, 1);
+        ly1 = gridLogical(Math.ceil((physical.y + physical.height) / scale), scale, 1);
+        if (lx0 === null || ly0 === null || lx1 === null || ly1 === null) return null;
+    }
     const rect = { x: lx0, y: ly0, width: lx1 - lx0, height: ly1 - ly0 };
     const offsetX = physical.x - Math.round(lx0 * scale),
         offsetY = physical.y - Math.round(ly0 * scale);

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { snapToGrid } from '../src/core/geometry.js';
 import { cursorFor } from '../src/ui/cursorModel.js';
 
 // Load the class without GNOME imports; these tests exercise its actor protocol only.
@@ -19,6 +20,7 @@ const Overlay = vm.runInNewContext(source, {
     cursorFor,
     contains: () => true,
     physicalRect: (rect) => rect,
+    snapToGrid,
 });
 
 function actor(visible = true) {

@@ -457,12 +457,12 @@ test('unaligned fallback validates the full texture dimensions', async () => {
     };
     pixbuf.get_width = () => 823;
     pixbuf.get_height = () => 548;
-    await new Output().render(snapshot, { x: 1, y: 1, width: 601, height: 400 }, [], { scale: 1.37 }, operation);
+    await new Output().render(snapshot, { x: 1, y: 1, width: 601, height: 400 }, [], { scale: Math.SQRT2 }, operation);
     assert.deepEqual(Array.from(events[0][0]), [1, 1, 601, 400]);
     assert.deepEqual(events[1].slice(0, 5), [texture, 0, 0, -1, -1]);
     pixbuf.get_width = () => 822;
     await assert.rejects(
-        new Output().render(snapshot, { x: 1, y: 1, width: 601, height: 400 }, [], { scale: 1.37 }, operation),
+        new Output().render(snapshot, { x: 1, y: 1, width: 601, height: 400 }, [], { scale: Math.SQRT2 }, operation),
         /expected 823x548/,
     );
 });

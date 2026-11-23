@@ -11,6 +11,7 @@
     "lint": "biome ci .",
     "format": "biome format --write . && biome lint --write .",
     "glsl": "node scripts/glsl-check.js",
+    "glsl:render": "node scripts/glsl-render/cases.mjs | python3 -I scripts/glsl-render/render.py",
     "coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=spec --test-reporter-destination=stdout"
   },
   "devDependencies": {

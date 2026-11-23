@@ -4,7 +4,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import { contains, handles, physicalRect } from '../core/geometry.js';
+import { contains, handles, physicalRect, snapToGrid } from '../core/geometry.js';
 import { textFont } from '../rendering/annotations.js';
 import { AlignmentGuides } from './alignmentGuides.js';
 import { AnnotationActors } from './annotationActors.js';
@@ -334,7 +334,9 @@ export class Overlay {
         const node = container.get_theme_node();
         const insetX = node.get_border_width(St.Side.LEFT) + node.get_padding(St.Side.LEFT);
         const insetY = node.get_border_width(St.Side.TOP) + node.get_padding(St.Side.TOP);
-        container.set_position(position.x - insetX, position.y - insetY);
+        // Same physical-grid snap as the committed text actor, so the text does not shift on commit.
+        const scale = this.editor.monitor?.scale ?? 1;
+        container.set_position(snapToGrid(position.x, scale) - insetX, snapToGrid(position.y, scale) - insetY);
         container.set_clip(
             0,
             0,
@@ -376,7 +378,13 @@ export class Overlay {
     }
 
     _updateDecorations() {
-        const rect = decorationRect(this.editor);
+        let rect = decorationRect(this.editor);
+        if (rect && this.editor.monitor) {
+            // Snap to the physical pixel grid so outline edges match the export crop and never sit mid-pixel.
+            const scale = this.editor.monitor.scale ?? 1;
+            const p = physicalRect(rect, scale);
+            rect = { x: p.x / scale, y: p.y / scale, width: p.width / scale, height: p.height / scale };
+        }
         const W = this.actor.width,
             H = this.actor.height;
         if (rect) {

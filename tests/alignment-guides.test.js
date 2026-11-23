@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { snapToGrid } from '../src/core/geometry.js';
 import { alignmentGuideGeometry } from '../src/rendering/alignmentGuideGeometry.js';
 import { CROSS_CODE, CROSS_DECLARATIONS, GUIDE_CODE, GUIDE_DECLARATIONS } from '../src/ui/shaders.js';
 
@@ -66,6 +67,7 @@ const source = `${readFileSync(new URL('../src/ui/alignmentGuides.js', import.me
     .replace(/^import [^;]*;\n/gm, '')
     .replace('export class AlignmentGuides', 'class AlignmentGuides')}\nthis.AlignmentGuides = AlignmentGuides;`;
 const AlignmentGuides = vm.runInNewContext(source, {
+    snapToGrid,
     Clutter: { Actor },
     St: {
         Widget: Actor,

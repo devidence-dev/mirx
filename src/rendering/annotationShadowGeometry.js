@@ -1,8 +1,9 @@
+import { snapToGrid } from '../core/geometry.js';
+
 // Keep the source phase intact while snapping the offset and padded wrapper to the physical grid.
 export function annotationShadowGeometry(rect, scale, resourceScale = Math.ceil(scale)) {
-    const snap = (value) => Math.round(value * scale) / scale;
-    const x = rect.x + snap(1);
-    const y = rect.y + snap(2);
+    const x = rect.x + snapToGrid(1, scale);
+    const y = rect.y + snapToGrid(2, scale);
     const padding = 6;
     const left = Math.floor((x - padding) * scale) / scale;
     const top = Math.floor((y - padding) * scale) / scale;

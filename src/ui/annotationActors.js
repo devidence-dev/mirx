@@ -5,11 +5,11 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import { markerNumbers } from '../core/editor.js';
-import { markerRadius } from '../core/geometry.js';
+import { markerRadius, snapToGrid } from '../core/geometry.js';
 import { textFont } from '../rendering/annotations.js';
 import {
-    arrowBars,
     arrowBounds,
+    arrowUniforms,
     contrastColor,
     effectTextureUniforms,
     ellipseUniforms,
@@ -22,6 +22,8 @@ import {
     rectangleGeometry,
 } from '../rendering/actorGeometry.js';
 import {
+    ARROW_CODE,
+    ARROW_DECLARATIONS,
     ELLIPSE_CODE,
     ELLIPSE_DECLARATIONS,
     GRADIENT_RECOLOR_CODE,
@@ -67,7 +69,29 @@ const EllipseEffect = GObject.registerClass(
     },
 );
 
-// Recolours the St pixels already painted by a rectangle or arrow; exists only while it has a gradient.
+// Round-capped shaft and head drawn as distance fields, so diagonal edges are antialiased.
+const ArrowEffect = GObject.registerClass(
+    class MirxArrowEffect extends Shell.GLSLEffect {
+        vfunc_build_pipeline() {
+            this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, ARROW_DECLARATIONS, ARROW_CODE, true);
+        }
+
+        vfunc_paint_target(node, paintContext) {
+            const scale = this.get_actor().get_resource_scale();
+            const { textureSize, contentOffset } = textureUniforms(this);
+            setUniforms(this, {
+                textureSize,
+                contentOffset,
+                ...arrowUniforms(this.annotation, scale, this.physicalScale),
+                ...gradientUniforms(this.annotation, arrowBounds(this.annotation), this.shades, scale),
+                arrowColor: this.color,
+            });
+            super.vfunc_paint_target(node, paintContext);
+        }
+    },
+);
+
+// Recolours the St pixels already painted by a rectangle; exists only while it has a gradient.
 const GradientEffect = GObject.registerClass(
     class MirxGradientEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
@@ -82,8 +106,7 @@ const GradientEffect = GObject.registerClass(
 
         vfunc_paint_target(node, paintContext) {
             const scale = this.get_actor().get_resource_scale();
-            const size =
-                this.annotation.type === 'arrow' ? arrowBounds(this.annotation) : rectangleGeometry(this.annotation);
+            const size = rectangleGeometry(this.annotation);
             const { textureSize, contentOffset } = textureUniforms(this);
             setUniforms(this, {
                 textureSize,
@@ -156,25 +179,9 @@ function updateHighlighter(entry, annotation, color) {
     }
 }
 
-function updateArrow(entry, annotation, color, width) {
-    // The container is the arrowBounds box, so bars are placed relative to its origin.
-    const bounds = arrowBounds(annotation);
-    place(entry.actor, bounds);
-    arrowBars(annotation).forEach((bar, i) => {
-        const part = entry.bars[i];
-        place(part, { ...bar, x: bar.x - bounds.x, y: bar.y - bounds.y });
-        part.set_pivot_point(bar.pivotX, bar.pivotY);
-        part.set_rotation_angle(Clutter.RotateAxis.Z_AXIS, bar.angle);
-        if (entry.style !== `${width}:${color}`)
-            part.set_style(`background-color: ${color}; border-radius: ${width / 2}px;`);
-    });
-    entry.style = `${width}:${color}`;
-    syncGradient(entry, annotation, color);
-}
-
-function updateText(entry, annotation, color, width) {
+function updateText(entry, annotation, color, width, scale) {
     const { actor } = entry;
-    actor.set_position(annotation.x1, annotation.y1);
+    actor.set_position(snapToGrid(annotation.x1, scale), snapToGrid(annotation.y1, scale));
     const text = annotation.text ?? '';
     if (entry.text !== text) {
         actor.set_text(text);
@@ -205,11 +212,15 @@ function updateMarkerLabel(entry, annotation, color, width, text, scale) {
     shadow.visible = ink === '#ffffff'; // a shadow under a black number would only smudge it
     const [, w] = label.get_preferred_width(-1);
     const [, h] = label.get_preferred_height(-1);
-    const snap = (v) => Math.round(v * scale) / scale;
-    place(label, { x: snap(annotation.x1 - w / 2), y: snap(annotation.y1 - h / 2), width: w, height: h });
+    place(label, {
+        x: snapToGrid(annotation.x1 - w / 2, scale),
+        y: snapToGrid(annotation.y1 - h / 2, scale),
+        width: w,
+        height: h,
+    });
     place(shadow, {
-        x: snap(annotation.x1 - w / 2),
-        y: snap(annotation.y1 - h / 2 + 1 / scale),
+        x: snapToGrid(annotation.x1 - w / 2, scale),
+        y: snapToGrid(annotation.y1 - h / 2 + 1 / scale, scale),
         width: w,
         height: h,
     });
@@ -236,18 +247,15 @@ export class AnnotationActors {
 
     _create(annotation) {
         let actor,
-            bars = null,
             image = null,
             effect = null,
             disc = null,
             shadow = null,
             label = null;
         if (annotation.type === 'arrow') {
-            actor = new Clutter.Actor();
-            bars = [0, 1, 2].map(() => new St.Widget());
-            bars.forEach((bar) => {
-                actor.add_child(bar);
-            });
+            const [, background] = Cogl.Color.from_string('#ffffff');
+            actor = new Clutter.Actor({ background_color: background });
+            effect = new ArrowEffect();
         } else if (annotation.type === 'text') {
             actor = new Clutter.Text({ single_line_mode: false });
         } else if (annotation.type === 'circle') {
@@ -276,7 +284,6 @@ export class AnnotationActors {
         }
         const entry = {
             actor,
-            bars,
             image,
             disc,
             shadow,
@@ -304,10 +311,10 @@ export class AnnotationActors {
                 updateHighlighter(entry, annotation, color);
                 break;
             case 'arrow':
-                updateArrow(entry, annotation, color, width);
+                this._updateArrow(entry, annotation, color);
                 break;
             case 'text':
-                updateText(entry, annotation, color, width);
+                updateText(entry, annotation, color, width, this._physicalScale);
                 break;
             case 'circle':
                 this._updateCircle(entry, annotation, color);
@@ -331,6 +338,15 @@ export class AnnotationActors {
         entry.actor.queue_redraw();
     }
 
+    _updateArrow(entry, annotation, color) {
+        place(entry.actor, arrowBounds(annotation));
+        entry.effect.annotation = { ...annotation };
+        entry.effect.physicalScale = this._physicalScale;
+        entry.effect.color = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255);
+        entry.effect.shades = annotation.gradient ? gradientShades(color) : null;
+        entry.actor.queue_redraw();
+    }
+
     _shadowRect(entry, annotation, selection) {
         switch (annotation.type) {
             case 'arrow':
@@ -342,7 +358,13 @@ export class AnnotationActors {
             case 'text': {
                 const [, width] = entry.actor.get_preferred_width(-1);
                 const [, height] = entry.actor.get_preferred_height(width);
-                return { x: annotation.x1, y: annotation.y1, width, height };
+                const scale = this._physicalScale;
+                return {
+                    x: snapToGrid(annotation.x1, scale),
+                    y: snapToGrid(annotation.y1, scale),
+                    width,
+                    height,
+                };
             }
             default:
                 return rectangleGeometry(annotation);

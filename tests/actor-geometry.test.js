@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    arrowBars,
     arrowBounds,
+    arrowUniforms,
     contrastColor,
     effectTextureUniforms,
     ellipseUniforms,
@@ -109,27 +109,32 @@ test('offscreen uniforms account for padded FBO and fractional display scale', (
     });
 });
 
-test('diagonal arrow bars rotate at the centre of their starting cap', () => {
-    for (const width of [3, 6]) {
-        const annotation = { x1: 13, y1: 27, x2: 53, y2: 57, width };
-        const bars = arrowBars(annotation);
-        assert.equal(bars.length, 3);
-        for (const [index, bar] of bars.entries()) {
-            const start = index ? { x: annotation.x2, y: annotation.y2 } : { x: annotation.x1, y: annotation.y1 };
-            assert.equal(bar.x + bar.width * bar.pivotX, start.x);
-            assert.equal(bar.y + bar.height * bar.pivotY, start.y);
-            const length = index ? Math.max(12, width * 4) : 50;
-            assert.ok(Math.abs(bar.width - width - length) < 1e-10);
-        }
-        assert.ok(Math.abs(bars[0].angle - (Math.atan2(30, 40) * 180) / Math.PI) < 1e-10);
-        for (const [index, sign] of [-1, 1].entries()) {
-            const expected = Math.atan2(30, 40) + (sign * Math.PI) / 6;
-            const actual = (bars[index + 1].angle * Math.PI) / 180;
-            assert.ok(Math.abs(Math.cos(actual) + Math.cos(expected)) < 1e-10);
-            assert.ok(Math.abs(Math.sin(actual) + Math.sin(expected)) < 1e-10);
-        }
+test('arrow uniforms put the tail, tip and head ends in resource pixels from the bounds origin', () => {
+    for (const scale of [1, 2, 4 / 3]) {
+        const annotation = { type: 'arrow', x1: 13, y1: 27, x2: 53, y2: 57, width: 6 };
+        const { x, y } = arrowBounds(annotation);
+        const uniforms = arrowUniforms(annotation, scale, 1);
+        assertClose(uniforms.tail, [(13 - x) * scale, (27 - y) * scale]);
+        assertClose(uniforms.tip, [(53 - x) * scale, (57 - y) * scale]);
+        const angle = Math.atan2(30, 40);
+        for (const [key, sign] of [
+            ['wingA', -1],
+            ['wingB', 1],
+        ])
+            assertClose(uniforms[key], [
+                (53 - 24 * Math.cos(angle + (sign * Math.PI) / 6) - x) * scale,
+                (57 - 24 * Math.sin(angle + (sign * Math.PI) / 6) - y) * scale,
+            ]);
+        assertClose(uniforms.stroke, [6 * scale]);
+        assertClose(uniforms.antialias, [scale]);
     }
+    assert.deepEqual(arrowUniforms({ type: 'arrow', x1: 0, y1: 0, x2: 9, y2: 0, width: 3 }, 2, 4 / 3).antialias, [1.5]);
 });
+
+function assertClose(actual, expected) {
+    assert.equal(actual.length, expected.length);
+    for (const [i, v] of actual.entries()) assert.ok(Math.abs(v - expected[i]) < 1e-9, `${actual} != ${expected}`);
+}
 
 test('marker contrast is white except on White and near-white', () => {
     const expected = {
@@ -230,32 +235,7 @@ test('gradient ends stay within 0..1 and never get darker at the start for every
     }
 });
 
-// The four corners of a rotated bar, rotated about its pivot.
-function barCorners(bar) {
-    const px = bar.x + bar.width * bar.pivotX,
-        py = bar.y + bar.height * bar.pivotY;
-    const theta = (bar.angle * Math.PI) / 180;
-    const corners = [];
-    for (const u of [-bar.width * bar.pivotX, bar.width * (1 - bar.pivotX)]) {
-        for (const v of [-bar.height * bar.pivotY, bar.height * (1 - bar.pivotY)]) {
-            corners.push({
-                x: px + u * Math.cos(theta) - v * Math.sin(theta),
-                y: py + u * Math.sin(theta) + v * Math.cos(theta),
-            });
-        }
-    }
-    return corners;
-}
-
-function assertBarInside(bar, bounds, label) {
-    const EPS = 1e-6;
-    for (const { x, y } of barCorners(bar)) {
-        assert.ok(x >= bounds.x - EPS && x <= bounds.x + bounds.width + EPS, `x ${label}`);
-        assert.ok(y >= bounds.y - EPS && y <= bounds.y + bounds.height + EPS, `y ${label}`);
-    }
-}
-
-test('arrow bars lie inside the arrow bounds for every angle and width', () => {
+test('arrow strokes and their antialiasing fringe lie inside the arrow bounds for every angle and width', () => {
     for (const degrees of [0, 45, 90, 180, 270]) {
         for (const width of [1, 3, 30]) {
             const radians = (degrees * Math.PI) / 180;
@@ -268,7 +248,13 @@ test('arrow bars lie inside the arrow bounds for every angle and width', () => {
                 y2: 200 + 60 * Math.sin(radians),
             };
             const bounds = arrowBounds(annotation);
-            for (const bar of arrowBars(annotation)) assertBarInside(bar, bounds, `${degrees} deg, width ${width}`);
+            const { tail, tip, wingA, wingB } = arrowUniforms(annotation, 1, 1);
+            // Half the stroke plus half a pixel of fringe must fit around every segment end.
+            const reach = width / 2 + 0.5;
+            for (const [x, y] of [tail, tip, wingA, wingB]) {
+                assert.ok(x - reach >= -1e-9 && x + reach <= bounds.width + 1e-9, `x ${degrees} deg, width ${width}`);
+                assert.ok(y - reach >= -1e-9 && y + reach <= bounds.height + 1e-9, `y ${degrees} deg, width ${width}`);
+            }
         }
     }
 });

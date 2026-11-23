@@ -11,43 +11,12 @@ export function rectangleGeometry(a) {
     return { x: x - width / 2, y: y - width / 2, width: w + width, height: h + width };
 }
 
-export function arrowBars(a) {
+// Tail, tip and the two head-stroke ends, in logical stage pixels.
+function arrowPoints(a) {
     const width = Math.max(1, a.width || 3);
     const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
     const head = Math.max(12, width * 4);
-    const bar = (x1, y1, x2, y2) => {
-        const length = Math.hypot(x2 - x1, y2 - y1);
-        const total = length + width;
-        return {
-            x: x1 - width / 2,
-            y: y1 - width / 2,
-            width: total,
-            height: width,
-            pivotX: width / (2 * total),
-            pivotY: 0.5,
-            angle: (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI,
-        };
-    };
     return [
-        bar(a.x1, a.y1, a.x2, a.y2),
-        ...[-1, 1].map((sign) =>
-            bar(
-                a.x2,
-                a.y2,
-                a.x2 - head * Math.cos(angle + (sign * Math.PI) / 6),
-                a.y2 - head * Math.sin(angle + (sign * Math.PI) / 6),
-            ),
-        ),
-    ];
-}
-
-// Box around the tail, the tip and both head-bar ends. The pad of width / sqrt(2) holds the corners of the
-// rotated bars, which lie further out than the half width the rounded stroke itself needs.
-export function arrowBounds(a) {
-    const width = Math.max(1, a.width || 3);
-    const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
-    const head = Math.max(12, width * 4);
-    const points = [
         [a.x1, a.y1],
         [a.x2, a.y2],
         ...[-1, 1].map((sign) => [
@@ -55,12 +24,35 @@ export function arrowBounds(a) {
             a.y2 - head * Math.sin(angle + (sign * Math.PI) / 6),
         ]),
     ];
+}
+
+// Box around the round-capped strokes: half the stroke plus one logical pixel for the antialiasing fringe.
+export function arrowBounds(a) {
+    const width = Math.max(1, a.width || 3);
+    const points = arrowPoints(a);
     const xs = points.map(([x]) => x),
         ys = points.map(([, y]) => y);
-    const pad = width * Math.SQRT1_2;
+    const pad = width / 2 + 1;
     const x = Math.min(...xs) - pad,
         y = Math.min(...ys) - pad;
     return { x, y, width: Math.max(...xs) + pad - x, height: Math.max(...ys) + pad - y };
+}
+
+// Shader segments in resource pixels relative to the arrowBounds origin.
+export function arrowUniforms(a, resourceScale, physicalScale) {
+    const { x, y } = arrowBounds(a);
+    const [tail, tip, wingA, wingB] = arrowPoints(a).map(([px, py]) => [
+        (px - x) * resourceScale,
+        (py - y) * resourceScale,
+    ]);
+    return {
+        tail,
+        tip,
+        wingA,
+        wingB,
+        stroke: [Math.max(1, a.width || 3) * resourceScale],
+        antialias: [resourceScale / physicalScale],
+    };
 }
 
 // Gradient direction in actor pixels: tail to tip for arrows, else the normalized box diagonal.
