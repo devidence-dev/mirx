@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -29,9 +29,13 @@ try {
     // Compile only to validate the schema; gnome-extensions install and the Shell compile it on install.
     run(schemaCompiler(), ['--strict', join(stage, 'schemas')]);
     rmSync(join(stage, 'schemas', 'gschemas.compiled'), { force: true });
+    const { uuid, 'version-name': version } = JSON.parse(readFileSync('metadata.json', 'utf8'));
+    if (!uuid || !version) throw new Error('metadata.json needs uuid and version-name');
     mkdirSync('dist', { recursive: true });
-    const archive = resolve('dist/mirx@devidence.dev.shell-extension.zip');
-    rmSync(archive, { force: true });
+    // The release uploads the only dist/*.shell-extension.zip, so builds of other versions must go.
+    for (const name of readdirSync('dist'))
+        if (name.endsWith('.shell-extension.zip')) rmSync(join('dist', name), { force: true });
+    const archive = resolve(`dist/${uuid}.v${version}.shell-extension.zip`);
     const zip = spawnSync('/usr/bin/zip', ['-qrD', archive, '.'], { cwd: stage, stdio: 'inherit' });
     if (zip.error?.code === 'ENOENT') {
         run(

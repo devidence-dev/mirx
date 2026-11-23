@@ -33,7 +33,7 @@ function sourceFiles(dir) {
 }
 
 test('zip holds only runtime files and no compiled schema', (t) => {
-    const archive = 'dist/mirx@devidence.dev.shell-extension.zip';
+    const archive = `dist/mirx@devidence.dev.v${JSON.parse(readFileSync('metadata.json', 'utf8'))['version-name']}.shell-extension.zip`;
     const pack = spawnSync(process.execPath, ['scripts/pack.js'], { encoding: 'utf8' });
     if (/glib-compile-schemas|zip is required/.test(pack.stderr) && pack.status !== 0)
         return t.skip('packaging tools unavailable');

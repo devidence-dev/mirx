@@ -28,10 +28,10 @@ Targets **GNOME Shell 50 on Wayland**, tested on Ubuntu 26.04 LTS (GNOME Shell 5
 
 ### 📥 From GitHub Releases
 
-Download `mirx@devidence.dev.shell-extension.zip` from the [latest release](https://github.com/devidence-dev/mirx/releases/latest), then install it:
+Download `mirx@devidence.dev.vX.Y.Z.shell-extension.zip` from the [latest release](https://github.com/devidence-dev/mirx/releases/latest), then install it:
 
 ```sh
-gnome-extensions install --force mirx@devidence.dev.shell-extension.zip
+gnome-extensions install --force mirx@devidence.dev.vX.Y.Z.shell-extension.zip
 ```
 
 Then **log out and back in** (Wayland only loads new extension code at login), and enable it:
@@ -50,7 +50,7 @@ You need Node.js 22 or later, `glib-compile-schemas` (package `libglib2.0-bin`) 
 
 ```sh
 npm run pack
-gnome-extensions install --force dist/mirx@devidence.dev.shell-extension.zip
+gnome-extensions install --force dist/mirx@devidence.dev.v*.shell-extension.zip
 ```
 
 Then **log out and back in** (Wayland only loads new extension code at login), and enable it:
@@ -119,7 +119,7 @@ npm run format   # Biome: apply formatting and safe fixes
 npm run glsl     # compile the GLSL shaders
 npm run coverage # tests with coverage, writes lcov.info
 npm run check    # metadata, JS syntax and schema
-npm run pack     # build dist/mirx@devidence.dev.shell-extension.zip
+npm run pack     # build dist/mirx@devidence.dev.v<version-name>.shell-extension.zip
 ```
 
 For development on Wayland, install the extension and start a nested GNOME Shell 50 session:

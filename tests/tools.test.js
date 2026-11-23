@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import test from 'node:test';
@@ -79,6 +79,8 @@ test('packaging ignores executables in the inherited PATH', (t) => {
     for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'src', 'schemas', 'icons']) {
         cpSync(name, join(dir, name), { recursive: true });
     }
+    mkdirSync(join(dir, 'dist'));
+    writeFileSync(join(dir, 'dist/mirx@devidence.dev.v0.0.1.shell-extension.zip'), 'stale');
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/pack.js', import.meta.url))], {
         cwd: dir,
         env,
@@ -89,5 +91,7 @@ test('packaging ignores executables in the inherited PATH', (t) => {
     if (result.status !== 0 && /glib-compile-schemas|zip is required|python3 is required/.test(result.stderr))
         return t.skip('packaging tools unavailable');
     assert.equal(result.status, 0, result.stderr);
-    assert.ok(existsSync(join(dir, 'dist/mirx@devidence.dev.shell-extension.zip')));
+    const version = JSON.parse(readFileSync('metadata.json', 'utf8'))['version-name'];
+    // Exactly one zip, named after the version, because the release uploads the only one it finds.
+    assert.deepEqual(readdirSync(join(dir, 'dist')), [`mirx@devidence.dev.v${version}.shell-extension.zip`]);
 });
