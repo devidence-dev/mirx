@@ -1,12 +1,12 @@
 <p align="center"><img src="icons/mirx.svg" width="128" alt="mirx logo"></p>
 
 <p align="center">
-  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%A7%AA%20Test&label=tests" alt="tests"></a>
-  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%A7%B9%20Biome&label=biome" alt="biome"></a>
-  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%8E%A8%20GLSL&label=GLSL" alt="GLSL"></a>
+  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%A7%AA%20Test&label=tests&logo=nodedotjs&logoColor=white" alt="tests"></a>
+  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%A7%B9%20Biome&label=biome&logo=biome&logoColor=white" alt="biome"></a>
+  <a href="https://github.com/devidence-dev/mirx/actions/workflows/ci.yml"><img src="https://img.shields.io/github/check-runs/devidence-dev/mirx/main?nameFilter=%F0%9F%A7%AA%20CI%20%2F%20%F0%9F%8E%A8%20GLSL&label=GLSL&logo=opengl&logoColor=white" alt="GLSL"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=devidence-dev_mirx"><img src="https://sonarcloud.io/api/project_badges/measure?project=devidence-dev_mirx&metric=alert_status" alt="Quality Gate Status"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=devidence-dev_mirx"><img src="https://sonarcloud.io/api/project_badges/measure?project=devidence-dev_mirx&metric=coverage" alt="Coverage"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg" alt="License: GPL-2.0-or-later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg?logo=gnu&logoColor=white" alt="License: GPL-2.0-or-later"></a>
 </p>
 
 # 📸 mirx
