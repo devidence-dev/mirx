@@ -10,6 +10,7 @@ import { setUniforms, textureUniforms } from './annotationActors.js';
 import { CROSS_CODE, CROSS_DECLARATIONS, GUIDE_CODE, GUIDE_DECLARATIONS } from './shaders.js';
 
 const GuideEffect = GObject.registerClass(
+    { GTypeName: 'MirxGuideEffect' },
     class MirxGuideEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, GUIDE_DECLARATIONS, GUIDE_CODE, true);
@@ -32,6 +33,7 @@ const GuideEffect = GObject.registerClass(
 );
 
 const CrossEffect = GObject.registerClass(
+    { GTypeName: 'MirxCrossEffect' },
     class MirxCrossEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, CROSS_DECLARATIONS, CROSS_CODE, true);

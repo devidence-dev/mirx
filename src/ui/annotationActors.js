@@ -49,6 +49,7 @@ export function textureUniforms(effect) {
 }
 
 const EllipseEffect = GObject.registerClass(
+    { GTypeName: 'MirxEllipseEffect' },
     class MirxEllipseEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, ELLIPSE_DECLARATIONS, ELLIPSE_CODE, true);
@@ -71,6 +72,7 @@ const EllipseEffect = GObject.registerClass(
 
 // Round-capped shaft and head drawn as distance fields, so diagonal edges are antialiased.
 const ArrowEffect = GObject.registerClass(
+    { GTypeName: 'MirxArrowEffect' },
     class MirxArrowEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             this.add_glsl_snippet(Cogl.SnippetHook.FRAGMENT, ARROW_DECLARATIONS, ARROW_CODE, true);
@@ -93,6 +95,7 @@ const ArrowEffect = GObject.registerClass(
 
 // Recolours the St pixels already painted by a rectangle; exists only while it has a gradient.
 const GradientEffect = GObject.registerClass(
+    { GTypeName: 'MirxGradientEffect' },
     class MirxGradientEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             // Samples its texture explicitly, the same way GNOME Shell's own effects do.
@@ -119,6 +122,7 @@ const GradientEffect = GObject.registerClass(
 );
 
 const PixelateEffect = GObject.registerClass(
+    { GTypeName: 'MirxPixelateEffect' },
     class MirxPixelateEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             this.add_glsl_snippet(Cogl.SnippetHook.TEXTURE_LOOKUP, PIXELATE_DECLARATIONS, PIXELATE_CODE, true);

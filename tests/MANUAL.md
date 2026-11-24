@@ -170,7 +170,7 @@ On 2026-11-10 an isolated headless GNOME Shell 50.1 (Ubuntu 26.04, gdk-pixbuf 2.
 
 Since no JavaScript path yields the pixels before the helper's PNG finishes, the export now closes the overlay as soon as the helper returns from its synchronous readback (`export-composite-sync`), and encodes and delivers in the background. Pending in a real session: the overlay disappears without the previous delay; the clipboard or file is complete when the notification appears; a paste before the notification yields the previous clipboard content; a failed save after the overlay closed is reported by notification.
 
-For an extension installed in the user's extension directory, enable timing and watch the log:
+Timings are written with `console.debug`, which GNOME Shell only logs when it runs with `G_MESSAGES_DEBUG=all` (for example a nested `G_MESSAGES_DEBUG=all dbus-run-session gnome-shell --devkit`, or `systemctl --user set-environment G_MESSAGES_DEBUG=all` followed by a new login). For an extension installed in the user's extension directory, enable timing and watch the log:
 
 ```sh
 gsettings --schemadir "$HOME/.local/share/gnome-shell/extensions/mirx@devidence.dev/schemas" set org.gnome.shell.extensions.mirx perf-log true

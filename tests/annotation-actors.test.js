@@ -198,7 +198,7 @@ const AnnotationActors = vm.runInNewContext(source, {
     },
     Cogl: { Color: { from_string: (color) => [true, color] }, SnippetHook: { FRAGMENT: 2048, TEXTURE_LOOKUP: 6145 } },
     Shell: { GLSLEffect: Effect },
-    GObject: { registerClass: (klass) => klass },
+    GObject: { registerClass: (...args) => args.at(-1) },
     ...shaders,
     textFont: (width, size) => ({ width, size }),
     arrowUniforms,

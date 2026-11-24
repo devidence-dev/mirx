@@ -46,7 +46,7 @@ function fixture({ action = 'copy', timed = true, selection = true } = {}) {
                 return now;
             },
         },
-        console: { log: (line) => calls.push(line) },
+        console: { debug: (line) => calls.push(line) },
     });
     const view = Object.create(Overlay.prototype);
     Object.assign(view, {

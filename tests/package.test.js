@@ -48,6 +48,7 @@ test('zip holds only runtime files and no compiled schema', (t) => {
     assert.equal(list.status, 0, list.stderr);
     const entries = list.stdout.split('\n').filter(Boolean);
     const expected = [
+        'LICENSE',
         'extension.js',
         'prefs.js',
         'metadata.json',
@@ -92,6 +93,7 @@ test('missing toolbar icon fails packaging without writing a zip', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mirx-missing-icon-'));
     try {
         for (const name of [
+            'LICENSE',
             'extension.js',
             'prefs.js',
             'metadata.json',

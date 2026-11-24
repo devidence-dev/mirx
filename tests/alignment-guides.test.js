@@ -80,7 +80,7 @@ const AlignmentGuides = vm.runInNewContext(source, {
     },
     Cogl: { Color: { from_string: (color) => [true, color] }, SnippetHook: { FRAGMENT: 2048 } },
     Shell: { GLSLEffect: Effect },
-    GObject: { registerClass: (klass) => klass },
+    GObject: { registerClass: (...args) => args.at(-1) },
     alignmentGuideGeometry,
     GUIDE_CODE,
     GUIDE_DECLARATIONS,

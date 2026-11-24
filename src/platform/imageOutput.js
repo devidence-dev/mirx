@@ -69,7 +69,7 @@ export class ImageOutput {
         const start = GLib.get_monotonic_time();
         return () => {
             const elapsed = (GLib.get_monotonic_time() - start) / 1000;
-            console.log(`mirx-perf ${phase} ms=${elapsed}${details ? ` ${details}` : ''}`);
+            console.debug(`mirx-perf ${phase} ms=${elapsed}${details ? ` ${details}` : ''}`);
         };
     }
 

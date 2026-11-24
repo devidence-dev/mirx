@@ -11,6 +11,7 @@ const SIZE = 144;
 const RADIUS = 10;
 
 const MaskEffect = GObject.registerClass(
+    { GTypeName: 'MirxMaskEffect' },
     class MirxMaskEffect extends Shell.GLSLEffect {
         vfunc_build_pipeline() {
             // Samples its texture explicitly, the same way GNOME Shell's own effects do.

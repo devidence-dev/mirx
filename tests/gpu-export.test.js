@@ -74,7 +74,7 @@ async function load({ deferComposite = false } = {}) {
                 throw new Error('Disabled export profiling must not read the clock');
             },
         },
-        console: { log: (message) => events.push(['perf', message]) },
+        console: { debug: (message) => events.push(['perf', message]) },
         GdkPixbuf: {
             Colorspace: { RGB: 0 },
             InterpType: { NEAREST: 0 },

@@ -222,7 +222,7 @@ export class Overlay {
         this._control = this._controlAt(global.stage.get_event_actor(event));
         if (!this._isControl(event) || this._dragging) this.editor.pointerMove(this._point, this._options(event));
         this._refresh();
-        if (timed) console.log(`mirx-perf motion ms=${(GLib.get_monotonic_time() - start) / 1000}`);
+        if (timed) console.debug(`mirx-perf motion ms=${(GLib.get_monotonic_time() - start) / 1000}`);
         return this._dragging ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
     }
 
@@ -372,7 +372,7 @@ export class Overlay {
             start === null
                 ? undefined
                 : () => {
-                      console.log(`mirx-perf export ms=${(GLib.get_monotonic_time() - start) / 1000}`);
+                      console.debug(`mirx-perf export ms=${(GLib.get_monotonic_time() - start) / 1000}`);
                   },
         );
     }

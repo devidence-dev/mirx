@@ -21,7 +21,7 @@ function fixture() {
                 return now;
             },
         },
-        console: { log: (line) => calls.push(line) },
+        console: { debug: (line) => calls.push(line) },
         snapToGrid,
     });
     const view = Object.create(Overlay.prototype);

@@ -12,7 +12,7 @@ function run(command, args, options = {}) {
 }
 const stage = mkdtempSync(join(tmpdir(), 'mirx-package-'));
 try {
-    for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'src', 'schemas']) {
+    for (const name of ['extension.js', 'prefs.js', 'metadata.json', 'stylesheet.css', 'LICENSE', 'src', 'schemas']) {
         if (!existsSync(name)) throw new Error(`Required package file missing: ${name}`);
         cpSync(name, join(stage, name), { recursive: true, filter: (source) => !source.endsWith('gschemas.compiled') });
     }

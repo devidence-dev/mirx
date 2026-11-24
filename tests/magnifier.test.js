@@ -60,7 +60,7 @@ const source = `${readFileSync(new URL('../src/ui/magnifier.js', import.meta.url
 const Magnifier = vm.runInNewContext(source, {
     Clutter: { Actor, ScalingFilter: { NEAREST: 0 } },
     Cogl: { SnippetHook: { FRAGMENT: 2048 } },
-    GObject: { registerClass: (klass) => klass },
+    GObject: { registerClass: (...args) => args.at(-1) },
     Shell: { GLSLEffect: Effect },
     St: {
         Widget: Actor,

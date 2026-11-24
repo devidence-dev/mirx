@@ -7,6 +7,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const PanelIndicator = GObject.registerClass(
+    { GTypeName: 'MirxPanelIndicator' },
     class PanelIndicator extends PanelMenu.Button {
         _init({ icon, shortcut, onScreenshot, onPreferences }) {
             super._init(0.0, 'mirx');
